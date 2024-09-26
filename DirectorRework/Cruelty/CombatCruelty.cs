@@ -4,37 +4,52 @@ using System.Linq;
 using DirectorRework.Config;
 using RoR2;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace DirectorRework.Cruelty
 {
     public static class CombatCruelty
     {
-        public static void OnSpawnedServer(CombatDirector director, GameObject masterObject)
+        public static void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
         {
-            if (!Util.CheckRoll(PluginConfig.triggerChance.Value))
-                return;
+            orig(self);
 
-            var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
-            if (!master || !master.hasBody)
-                return;
-            
-            var body = master.GetBody();
-            var inventory = master.inventory;
-
-            if (!body || !inventory || inventory.GetItemCount(RoR2Content.Items.HealthDecay) > 0)
-                return;
-
-            //Check amount of elite buffs the target has
-            List<BuffIndex> currentEliteBuffs = [];
-            foreach (var b in BuffCatalog.eliteBuffIndices)
+            if (NetworkServer.active)
             {
-                if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
-                    currentEliteBuffs.Add(b);
+                self.onSpawnedServer.AddListener((masterObject) =>
+                {
+                    if (!Util.CheckRoll(PluginConfig.triggerChance.Value))
+                        return;
+
+                    var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
+                    if (master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
+                    {
+                        var body = master.GetBody();
+                        if (body)
+                        {
+                            if (!PluginConfig.allowBosses.Value && (master.isBoss || body.isChampion))
+                                return;
+
+                            //Check amount of elite buffs the target has
+                            List<BuffIndex> currentEliteBuffs = [];
+                            foreach (var b in BuffCatalog.eliteBuffIndices)
+                            {
+                                if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
+                                    currentEliteBuffs.Add(b);
+                            }
+
+                            if (PluginConfig.onlyApplyToElites.Value && !currentEliteBuffs.Any())
+                                return;
+
+                            CombatCruelty.OnSpawnedServer(self, body, master.inventory, currentEliteBuffs);
+                        }
+                    }
+                });
             }
+        }
 
-            if (PluginConfig.onlyApplyToElites.Value && !currentEliteBuffs.Any())
-                return;
-
+        private static void OnSpawnedServer(CombatDirector director, CharacterBody body, Inventory inventory, List<BuffIndex> currentEliteBuffs)
+        {
             var dr = body.GetComponent<DeathRewards>();
             uint xp = 0, gold = 0;
             if (dr)
@@ -55,12 +70,11 @@ namespace DirectorRework.Cruelty
                 body.AddBuff(buff);
 
                 // set the affix count to higher than the actual count to reduce the impact of "raidbosses"
-                // also prevents  director from pouring all credits onto a single enemy since elite affordability is still compared to the true affix count
                 // math is a lil funky but it feels fine.
                 float affixes = currentEliteBuffs.Count;
                 director.monsterCredit -= result.cost / affixes;
-                inventory.GiveItem(RoR2Content.Items.BoostHp, Mathf.RoundToInt((result.def.healthBoostCoefficient - 1f) * 10f / affixes));
-                inventory.GiveItem(RoR2Content.Items.BoostDamage, Mathf.RoundToInt((result.def.damageBoostCoefficient - 1f) * 10f / affixes));
+                inventory.GiveItem(RoR2Content.Items.BoostHp, Mathf.RoundToInt((result.def.healthBoostCoefficient - 1f) * 10f / (affixes + 1)));
+                inventory.GiveItem(RoR2Content.Items.BoostDamage, Mathf.RoundToInt((result.def.damageBoostCoefficient - 1f) * 10f / (affixes + 1)));
 
                 if (dr)
                 {

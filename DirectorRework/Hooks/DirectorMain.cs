@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DirectorRework.Config;
 using RoR2;
@@ -8,38 +9,107 @@ namespace DirectorRework.Hooks
 {
     internal class DirectorMain
     {
-        public static DirectorMain instance;
+        public bool HooksEnabled { get; set; }
+        public bool RefundEnabled { get; set; }
 
-        public static void Init()
-        {
-            instance ??= new DirectorMain();
-        }
+        public static DirectorMain Instance { get; private set; }
+        public static void Init() => Instance ??= new DirectorMain();
 
         private DirectorMain()
         {
-            On.RoR2.CombatDirector.Spawn += CombatDirector_Spawn;
+            PluginConfig.enableDirectorMain.SettingChanged += OnSettingChanged;
+            PluginConfig.enableSpawnDiversity.SettingChanged += OnSettingChanged;
+            PluginConfig.enableCreditRefund.SettingChanged += OnSettingChanged;
 
-            // enemy variety
-            On.RoR2.CombatDirector.Simulate += CombatDirector_Simulate;
-            On.RoR2.Chat.SendBroadcastChat_ChatMessageBase += ChangeMessage;
-            On.RoR2.BossGroup.UpdateBossMemories += UpdateTitle;
+            OnSettingChanged(null, null);
         }
 
+        // fuck i hate this, worth a try tho
+        public void OnSettingChanged(object sender, EventArgs a)
+        {
+            if (PluginConfig.enableDirectorMain.Value)
+                SetHooks();
+            else
+                UnsetHooks();
+        }
+
+        public void SetHooks()
+        {
+            // refund
+            if (!RefundEnabled && PluginConfig.enableCreditRefund.Value)
+            {
+                On.RoR2.CombatDirector.Spawn += CombatDirector_Spawn;
+
+                RefundEnabled = true;
+            }
+            else if (RefundEnabled && !PluginConfig.enableCreditRefund.Value)
+            {
+                On.RoR2.CombatDirector.Spawn -= CombatDirector_Spawn;
+
+                RefundEnabled = false;
+            }
+
+            // enemy variety
+            if (!HooksEnabled && PluginConfig.enableSpawnDiversity.Value)
+            {
+                On.RoR2.CombatDirector.Simulate += CombatDirector_Simulate;
+                On.RoR2.Chat.SendBroadcastChat_ChatMessageBase += ChangeMessage;
+                On.RoR2.BossGroup.UpdateBossMemories += UpdateTitle;
+
+                HooksEnabled = true;
+            }
+            else if (HooksEnabled && !PluginConfig.enableSpawnDiversity.Value)
+            {
+                On.RoR2.CombatDirector.Simulate -= CombatDirector_Simulate;
+                On.RoR2.Chat.SendBroadcastChat_ChatMessageBase -= ChangeMessage;
+                On.RoR2.BossGroup.UpdateBossMemories -= UpdateTitle;
+
+                HooksEnabled = false;
+            }
+        }
+
+        public void UnsetHooks()
+        {
+            // refund
+            if (RefundEnabled)
+            {
+                On.RoR2.CombatDirector.Spawn -= CombatDirector_Spawn;
+
+                RefundEnabled = false;
+            }
+
+            // enemy variety
+            if (HooksEnabled)
+            {
+                On.RoR2.CombatDirector.Simulate -= CombatDirector_Simulate;
+                On.RoR2.Chat.SendBroadcastChat_ChatMessageBase -= ChangeMessage;
+                On.RoR2.BossGroup.UpdateBossMemories -= UpdateTitle;
+
+                HooksEnabled = false;
+            }
+        }
         private void CombatDirector_Simulate(On.RoR2.CombatDirector.orig_Simulate orig, CombatDirector self, float deltaTime)
         {
             orig(self, deltaTime);
 
-            if (PluginConfig.enableSpawnDiversity.Value && self.currentMonsterCard != null)
+            if (self.currentMonsterCard != null)
             {
                 float monsterSpawnTimer = self.monsterSpawnTimer;
                 int spawnCountInCurrentWave = self.spawnCountInCurrentWave;
 
                 if (self == TeleporterInteraction.instance?.bossDirector)
+                {
                     self.SetNextSpawnAsBoss();
-                else if (PluginConfig.enableVieldsDiversity.Value && ArenaMissionController.instance && ArenaMissionController.instance.activeMonsterCards?.Any() == true)
-                    self.PrepareNewMonsterWave(self.rng.NextElementUniform(ArenaMissionController.instance.activeMonsterCards));
+                }
+                else if (ArenaMissionController.instance?.activeMonsterCards?.Any() == true)
+                {
+                    if (PluginConfig.enableVieldsDiversity.Value)
+                        self.PrepareNewMonsterWave(self.rng.NextElementUniform(ArenaMissionController.instance.activeMonsterCards));
+                }
                 else if (self.finalMonsterCardsSelection != null && self.finalMonsterCardsSelection.Count > 0)
+                {
                     self.PrepareNewMonsterWave(self.finalMonsterCardsSelection.Evaluate(self.rng.nextNormalizedFloat));
+                }
 
                 self.monsterSpawnTimer = monsterSpawnTimer;
                 self.spawnCountInCurrentWave = spawnCountInCurrentWave;
@@ -48,7 +118,7 @@ namespace DirectorRework.Hooks
 
         private void ChangeMessage(On.RoR2.Chat.orig_SendBroadcastChat_ChatMessageBase orig, ChatMessageBase message)
         {
-            if (PluginConfig.enableSpawnDiversity.Value && message is Chat.SubjectFormatChatMessage chat && chat.paramTokens?.Any() is true && chat.baseToken is "SHRINE_COMBAT_USE_MESSAGE")
+            if (message is Chat.SubjectFormatChatMessage chat && chat.paramTokens?.Any() is true && chat.baseToken is "SHRINE_COMBAT_USE_MESSAGE")
                 chat.paramTokens[0] = Language.GetString("LOGBOOK_CATEGORY_MONSTER").ToLower();
 
             // Replace with generic message since shrine will have multiple enemy types
@@ -58,9 +128,6 @@ namespace DirectorRework.Hooks
         private void UpdateTitle(On.RoR2.BossGroup.orig_UpdateBossMemories orig, BossGroup self)
         {
             orig(self);
-
-            if (!PluginConfig.enableSpawnDiversity.Value)
-                return;
 
             var health = new Dictionary<(string, string), float>();
             float maximum = 0;
@@ -101,8 +168,8 @@ namespace DirectorRework.Hooks
         private bool CombatDirector_Spawn(On.RoR2.CombatDirector.orig_Spawn orig, RoR2.CombatDirector self, SpawnCard spawnCard, EliteDef eliteDef, Transform spawnTarget,
             DirectorCore.MonsterSpawnDistance spawnDistance, bool preventOverhead, float valueMultiplier, DirectorPlacementRule.PlacementMode placementMode)
         {
-            var res = orig(self, spawnCard, eliteDef, spawnTarget, spawnDistance, preventOverhead, valueMultiplier, placementMode);
-            if (res && PluginConfig.enableCreditRefund.Value)
+            var result = orig(self, spawnCard, eliteDef, spawnTarget, spawnDistance, preventOverhead, valueMultiplier, placementMode);
+            if (result)
             {
                 var refund = PluginConfig.creditRefundMultiplier.Value * 0.01f * spawnCard.directorCreditCost * valueMultiplier;
 
@@ -110,7 +177,7 @@ namespace DirectorRework.Hooks
                 self.totalCreditsSpent += refund;
             }
 
-            return res;
+            return result;
         }
     }
 }

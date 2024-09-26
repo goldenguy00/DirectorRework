@@ -19,7 +19,7 @@ namespace DirectorRework
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "DirectorReworkPlus";
-        public const string PluginVersion = "1.0.2";
+        public const string PluginVersion = "1.0.3";
 
         public static DirectorReworkPlugin Instance { get; private set; }
 
@@ -30,14 +30,9 @@ namespace DirectorRework
             Log.Init(Logger);
             PluginConfig.Init(Config);
 
-            if (PluginConfig.enableCruelty.Value)
-                CrueltyManager.Init();
-
-            if (PluginConfig.enableDirectorMain.Value)
-                DirectorMain.Init();
-
-            if (PluginConfig.enableDirectorTweaks.Value)
-                DirectorTweaks.Init();
+            CrueltyManager.Init();
+            DirectorMain.Init();
+            DirectorTweaks.Init();
         }
     }
 }

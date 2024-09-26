@@ -1,16 +1,19 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using DirectorRework.Config;
 using RoR2;
-using UnityEngine.Networking;
 
 namespace DirectorRework.Cruelty
 {
     /// <summary>
     /// Fixed it.
     /// </summary>
-    public class CrueltyManager
+    public class CrueltyManager : IHookProvider
     {
-        public static HashSet<EquipmentIndex> BlacklistedElites = [];
+        private HashSet<EquipmentIndex> BlacklistedElites { get; set; } = [];
+
         public static CrueltyManager Instance { get; private set; }
+        public bool HooksEnabled { get; set; }
 
         public static void Init() => Instance ??= new CrueltyManager();
 
@@ -18,26 +21,40 @@ namespace DirectorRework.Cruelty
         {
             RoR2Application.onLoad += OnLoad;
 
-            On.RoR2.CombatDirector.Awake += (orig, self) =>
-            {
-                orig(self);
-                if (NetworkServer.active)
-                {
-                    self.onSpawnedServer.AddListener((masterObject) => CombatCruelty.OnSpawnedServer(self, masterObject));
-                }
-            };
-
-            On.RoR2.ScriptedCombatEncounter.Awake += (orig, self) =>
-            {
-                orig(self);
-                if (NetworkServer.active && self.combatSquad)
-                {
-                    self.combatSquad.onMemberAddedServer += (master) => ScriptedCruelty.OnMemberAddedServer(master, self.rng);
-                }
-            };
+            PluginConfig.enableCruelty.SettingChanged += OnSettingChanged;
+            OnSettingChanged(null, null);
         }
 
-        private static void OnLoad()
+        public void OnSettingChanged(object sender, EventArgs args)
+        {
+            if (PluginConfig.enableCruelty.Value)
+                SetHooks();
+            else
+                UnsetHooks();
+        }
+
+        public void SetHooks()
+        {
+            if (!HooksEnabled)
+            {
+                On.RoR2.CombatDirector.Awake += CombatCruelty.CombatDirector_Awake;
+                On.RoR2.ScriptedCombatEncounter.Awake += ScriptedCruelty.ScriptedCombatEncounter_Awake;
+                HooksEnabled = true;
+            }
+        }
+
+        public void UnsetHooks()
+        {
+            if (HooksEnabled)
+            {
+                On.RoR2.CombatDirector.Awake -= CombatCruelty.CombatDirector_Awake;
+                On.RoR2.ScriptedCombatEncounter.Awake -= ScriptedCruelty.ScriptedCombatEncounter_Awake;
+
+                HooksEnabled = false;
+            }
+        }
+
+        private void OnLoad()
         {
             var blightIndex = EquipmentCatalog.FindEquipmentIndex("AffixBlightedMoffein");
             if (blightIndex != EquipmentIndex.None)
@@ -62,7 +79,7 @@ namespace DirectorRework.Cruelty
             return ed && ed.IsAvailable() && ed.eliteEquipmentDef &&
                                 ed.eliteEquipmentDef.passiveBuffDef &&
                                 ed.eliteEquipmentDef.passiveBuffDef.isElite &&
-                                !CrueltyManager.BlacklistedElites.Contains(ed.eliteEquipmentDef.equipmentIndex) &&
+                                !CrueltyManager.Instance.BlacklistedElites.Contains(ed.eliteEquipmentDef.equipmentIndex) &&
                                 !currentBuffs.Contains(ed.eliteEquipmentDef.passiveBuffDef.buffIndex);
         }
     }

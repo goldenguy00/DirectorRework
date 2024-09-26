@@ -1,21 +1,50 @@
-﻿using DirectorRework.Config;
+﻿using System;
+using DirectorRework.Config;
 using RoR2;
 
 namespace DirectorRework.Hooks
 {
-    internal class DirectorTweaks
+    internal class DirectorTweaks : IHookProvider
     {
+        public bool HooksEnabled { get; set; }
+
         public static DirectorTweaks instance;
 
-        public static void Init()
-        {
-            instance ??= new DirectorTweaks();
-        }
+        public static void Init() => instance ??= new DirectorTweaks();
 
         private DirectorTweaks()
         {
-            On.RoR2.CombatDirector.Awake += CombatDirector_Awake;
-            On.RoR2.TeleporterInteraction.ChargingState.OnEnter += ChargingState_OnEnter;
+            PluginConfig.enableDirectorTweaks.SettingChanged += OnSettingChanged;
+            OnSettingChanged(null, null);
+        }
+
+        public void OnSettingChanged(object sender, EventArgs args)
+        {
+            if (PluginConfig.enableDirectorTweaks.Value)
+                SetHooks();
+            else 
+                UnsetHooks();
+        }
+
+        public void SetHooks()
+        {
+            if (!HooksEnabled)
+            {
+                On.RoR2.CombatDirector.OnEnable += CombatDirector_OnEnable;
+                On.RoR2.TeleporterInteraction.ChargingState.OnEnter += ChargingState_OnEnter;
+                HooksEnabled = true;
+            }
+        }
+
+        public void UnsetHooks()
+        {
+            if (HooksEnabled)
+            {
+                On.RoR2.CombatDirector.OnEnable -= CombatDirector_OnEnable;
+                On.RoR2.TeleporterInteraction.ChargingState.OnEnter -= ChargingState_OnEnter;
+
+                HooksEnabled = false;
+            }
         }
 
         private void ChargingState_OnEnter(On.RoR2.TeleporterInteraction.ChargingState.orig_OnEnter orig, EntityStates.BaseState self)
@@ -45,15 +74,15 @@ namespace DirectorRework.Hooks
             orig(self);
         }
 
-        private void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, RoR2.CombatDirector self)
+        private void CombatDirector_OnEnable(On.RoR2.CombatDirector.orig_OnEnable orig, CombatDirector self)
         {
             if (PluginConfig.maxConsecutiveCheapSkips.Value >= 0)
                 self.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.Value;
             self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.Value;
             self.minRerollSpawnInterval = PluginConfig.minimumRerollSpawnIntervalMultiplier.Value;
             self.maxRerollSpawnInterval = PluginConfig.maximumRerollSpawnIntervalMultiplier.Value;
-            self.creditMultiplier *= PluginConfig.creditMultiplier.Value;
-            self.eliteBias *= PluginConfig.eliteBiasMultiplier.Value;
+            self.creditMultiplier = PluginConfig.creditMultiplier.Value;
+            self.eliteBias = PluginConfig.eliteBiasMultiplier.Value;
 
             orig(self);
         }

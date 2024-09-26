@@ -14,6 +14,7 @@ namespace DirectorRework.Config
 
         public static ConfigEntry<int> maxAffixes;
         public static ConfigEntry<bool> guaranteeSpecialBoss;
+        public static ConfigEntry<bool> allowBosses;
         public static ConfigEntry<bool> onlyApplyToElites;
         public static ConfigEntry<int> triggerChance;
         public static ConfigEntry<int> successChance;
@@ -41,17 +42,17 @@ namespace DirectorRework.Config
             enableCruelty = cfg.BindOption(section,
                 "Enable Affix Stacking",
                 true,
-                "Enables Affix Stacking (highly inspired by Artifact of Cruelty in RiskyArtifacts). Disable to prevent all modifications in 'Affixes/Cruelty' from loading.", true);
+                "Enables Affix Stacking (highly inspired by Artifact of Cruelty in RiskyArtifacts). Disable to prevent all modifications in 'Affixes/Cruelty' from loading.");
 
             enableDirectorMain = cfg.BindOption(section,
                 "Enable Director Changes",
                 true,
-                "Enables Enemy Variety and all 'Director Main' config options. Disable to prevent all modifications in 'Director Main' from loading.", true);
+                "Enables Enemy Variety and all 'Director Main' config options. Disable to prevent all modifications in 'Director Main' from loading.");
 
             enableDirectorTweaks = cfg.BindOption(section,
                 "Enable Combat Director Tweaks",
                 true,
-                "Enables a variety of configurable Combat Director options. Intended for fine tuning the pacing of spawns. Disable to prevent all modifications in 'Director Tweaks' from loading.", true);
+                "Enables a variety of configurable Combat Director options. Intended for fine tuning the pacing of spawns. Disable to prevent all modifications in 'Director Tweaks' from loading.");
 
             section = "Affixes/Cruelty";
             maxAffixes = cfg.BindOptionSlider(section,
@@ -62,8 +63,13 @@ namespace DirectorRework.Config
 
             guaranteeSpecialBoss = cfg.BindOption(section,
                 "Guarantee Special Boss",
-                true,
+                false,
                 "Always apply additional affixes to special bosses. Applies to void cradles and ignores elite credit cost.");
+
+            allowBosses = cfg.BindOption(section,
+                "Allow Boss Affix Stacking",
+                true,
+                "Allows bosses to recieve additional affixes.");
 
             triggerChance = cfg.BindOptionSlider(section,
                 "Trigger Chance",
@@ -96,12 +102,12 @@ namespace DirectorRework.Config
 
             enableCreditRefund = cfg.BindOption(section,
                 "Enable Credit Refund",
-                true,
+                false,
                 "Gives combat director back a percent of credits spent on spawns. Might work better when the enemy dies but this is good enough for now.");
 
             creditRefundMultiplier = cfg.BindOption(section,
                 "Percent refund to give to the combat director for a successfully spawned enemy.",
-                15,
+                10,
                 "Amount to refund the combat director when spawning enemies, in percent. 100 is a bad idea, but its technically possible.");
 
 
@@ -197,7 +203,7 @@ namespace DirectorRework.Config
                 {
                     min = 0,
                     max = 20,
-                    formatString = "{0:0.00}",
+                    FormatString = "{0:0.00}",
                     restartRequired = restartRequired
                 }));
                 return;
@@ -243,7 +249,7 @@ namespace DirectorRework.Config
                 {
                     min = min,
                     max = max,
-                    formatString = "{0:0.00}",
+                    FormatString = "{0:0.00}",
                     restartRequired = restartRequired
                 }));
         }
