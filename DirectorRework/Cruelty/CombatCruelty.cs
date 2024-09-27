@@ -18,7 +18,7 @@ namespace DirectorRework.Cruelty
             {
                 self.onSpawnedServer.AddListener((masterObject) =>
                 {
-                    if (!Util.CheckRoll(PluginConfig.triggerChance.Value))
+                    if (!PluginConfig.enableCruelty.Value || !Util.CheckRoll(PluginConfig.triggerChance.Value))
                         return;
 
                     var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
@@ -63,16 +63,18 @@ namespace DirectorRework.Cruelty
                 //Fill in equipment slot if it isn't filled
                 if (inventory.currentEquipmentIndex == EquipmentIndex.None)
                     inventory.SetEquipmentIndex(result.def.eliteEquipmentDef.equipmentIndex);
+                //else
+                //    inventory.SetEquipmentIndexForSlot(result.def.eliteEquipmentDef.equipmentIndex, (uint)inventory.GetEquipmentSlotCount());
 
                 //Apply Elite Bonus
                 var buff = result.def.eliteEquipmentDef.passiveBuffDef.buffIndex;
                 currentEliteBuffs.Add(buff);
                 body.AddBuff(buff);
 
-                // set the affix count to higher than the actual count to reduce the impact of "raidbosses"
-                // math is a lil funky but it feels fine.
+                // some fuckery here
                 float affixes = currentEliteBuffs.Count;
                 director.monsterCredit -= result.cost / affixes;
+                body.cost += result.cost / affixes;
                 inventory.GiveItem(RoR2Content.Items.BoostHp, Mathf.RoundToInt((result.def.healthBoostCoefficient - 1f) * 10f / (affixes + 1)));
                 inventory.GiveItem(RoR2Content.Items.BoostDamage, Mathf.RoundToInt((result.def.damageBoostCoefficient - 1f) * 10f / (affixes + 1)));
 

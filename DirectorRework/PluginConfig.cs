@@ -19,6 +19,7 @@ namespace DirectorRework.Config
         public static ConfigEntry<int> triggerChance;
         public static ConfigEntry<int> successChance;
 
+        public static ConfigEntry<bool> enableBossDiversity;
         public static ConfigEntry<bool> enableSpawnDiversity;
         public static ConfigEntry<bool> enableVieldsDiversity;
         public static ConfigEntry<bool> enableCreditRefund;
@@ -90,25 +91,30 @@ namespace DirectorRework.Config
 
 
             section = "Director Main";
+            enableBossDiversity = cfg.BindOption(section,
+                "Enable Boss Diversity",
+                true,
+                "Spawns multiple boss types during teleporter events.");
+
             enableSpawnDiversity = cfg.BindOption(section,
                 "Enable Spawn Diversity",
                 true,
-                "Spawns multiple enemy types per wave, multiple boss types during teleporter, etc.");
+                "Spawns multiple enemy types per wave.");
 
             enableVieldsDiversity = cfg.BindOption(section,
                 "Enable Void Fields Spawn Diversity",
                 false,
-                "Spawns multiple enemy types in void fields. Requires 'Enable Spawn Diversity'.");
+                "Spawns multiple enemy types in void fields. Selection is limited to the enemy types that can spawn on the final wave.");
 
             enableCreditRefund = cfg.BindOption(section,
                 "Enable Credit Refund",
                 false,
-                "Gives combat director back a percent of credits spent on spawns. Might work better when the enemy dies but this is good enough for now.");
+                "Gives combat director back a percent of credits spent on spawns when they are killed.");
 
             creditRefundMultiplier = cfg.BindOption(section,
-                "Percent refund to give to the combat director for a successfully spawned enemy.",
+                "Percent Refund",
                 10,
-                "Amount to refund the combat director when spawning enemies, in percent. 100 is a bad idea, but its technically possible.");
+                "Amount to refund the combat director when an enemy is killed, in percent. 100 is a bad idea, but its technically possible.");
 
 
             section = "Director Tweaks";

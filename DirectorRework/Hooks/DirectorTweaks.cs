@@ -49,7 +49,7 @@ namespace DirectorRework.Hooks
 
         private void ChargingState_OnEnter(On.RoR2.TeleporterInteraction.ChargingState.orig_OnEnter orig, EntityStates.BaseState self)
         {
-            if (self is TeleporterInteraction.ChargingState state && state != null && state.teleporterInteraction)
+            if (PluginConfig.enableDirectorTweaks.Value && self is TeleporterInteraction.ChargingState state && state != null && state.teleporterInteraction)
             {
                 var stacks = state.teleporterInteraction.shrineBonusStacks;
                 if (stacks > 0)
@@ -76,13 +76,16 @@ namespace DirectorRework.Hooks
 
         private void CombatDirector_OnEnable(On.RoR2.CombatDirector.orig_OnEnable orig, CombatDirector self)
         {
-            if (PluginConfig.maxConsecutiveCheapSkips.Value >= 0)
-                self.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.Value;
-            self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.Value;
-            self.minRerollSpawnInterval = PluginConfig.minimumRerollSpawnIntervalMultiplier.Value;
-            self.maxRerollSpawnInterval = PluginConfig.maximumRerollSpawnIntervalMultiplier.Value;
-            self.creditMultiplier = PluginConfig.creditMultiplier.Value;
-            self.eliteBias = PluginConfig.eliteBiasMultiplier.Value;
+            if (PluginConfig.enableDirectorTweaks.Value)
+            {
+                if (PluginConfig.maxConsecutiveCheapSkips.Value >= 0)
+                    self.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.Value;
+                self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.Value;
+                self.minRerollSpawnInterval = PluginConfig.minimumRerollSpawnIntervalMultiplier.Value;
+                self.maxRerollSpawnInterval = PluginConfig.maximumRerollSpawnIntervalMultiplier.Value;
+                self.creditMultiplier = PluginConfig.creditMultiplier.Value;
+                self.eliteBias = PluginConfig.eliteBiasMultiplier.Value;
+            }
 
             orig(self);
         }

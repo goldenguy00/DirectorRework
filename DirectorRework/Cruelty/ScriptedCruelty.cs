@@ -19,6 +19,9 @@ namespace DirectorRework.Cruelty
                 var rng = self.rng;
                 self.combatSquad.onMemberAddedServer += (master) =>
                 {
+                    if (!PluginConfig.enableCruelty.Value)
+                        return;
+
                     var forceApply = PluginConfig.guaranteeSpecialBoss.Value;
                     if (!forceApply && !Util.CheckRoll(PluginConfig.triggerChance.Value))
                         return;
@@ -64,6 +67,8 @@ namespace DirectorRework.Cruelty
                 //Fill in equipment slot if it isn't filled
                 if (inventory.currentEquipmentIndex == EquipmentIndex.None)
                     inventory.SetEquipmentIndex(result.eliteEquipmentDef.equipmentIndex);
+                //else
+                //    inventory.SetEquipmentIndexForSlot(result.eliteEquipmentDef.equipmentIndex, (uint)inventory.GetEquipmentSlotCount());
 
                 //Apply Elite Bonus
                 var buff = result.eliteEquipmentDef.passiveBuffDef.buffIndex;

@@ -77,10 +77,10 @@ namespace DirectorRework.Cruelty
         internal static bool IsValid(EliteDef ed, List<BuffIndex> currentBuffs)
         {
             return ed && ed.IsAvailable() && ed.eliteEquipmentDef &&
-                                ed.eliteEquipmentDef.passiveBuffDef &&
-                                ed.eliteEquipmentDef.passiveBuffDef.isElite &&
-                                !CrueltyManager.Instance.BlacklistedElites.Contains(ed.eliteEquipmentDef.equipmentIndex) &&
-                                !currentBuffs.Contains(ed.eliteEquipmentDef.passiveBuffDef.buffIndex);
+                   ed.eliteEquipmentDef.passiveBuffDef &&
+                   ed.eliteEquipmentDef.passiveBuffDef.isElite &&
+                   !CrueltyManager.Instance.BlacklistedElites.Contains(ed.eliteEquipmentDef.equipmentIndex) &&
+                   !currentBuffs.Contains(ed.eliteEquipmentDef.passiveBuffDef.buffIndex);
         }
     }
 }

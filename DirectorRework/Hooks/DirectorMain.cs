@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DirectorRework.Config;
 using RoR2;
-using UnityEngine;
+using UnityEngine.Networking;
 
 namespace DirectorRework.Hooks
 {
@@ -11,6 +11,7 @@ namespace DirectorRework.Hooks
     {
         public bool HooksEnabled { get; set; }
         public bool RefundEnabled { get; set; }
+        public bool VarietyEnabled => PluginConfig.enableSpawnDiversity.Value || PluginConfig.enableVieldsDiversity.Value || PluginConfig.enableBossDiversity.Value;
 
         public static DirectorMain Instance { get; private set; }
         public static void Init() => Instance ??= new DirectorMain();
@@ -38,19 +39,19 @@ namespace DirectorRework.Hooks
             // refund
             if (!RefundEnabled && PluginConfig.enableCreditRefund.Value)
             {
-                On.RoR2.CombatDirector.Spawn += CombatDirector_Spawn;
+                GlobalEventManager.onCharacterDeathGlobal += GlobalEventManager_onCharacterDeathGlobal;
 
                 RefundEnabled = true;
             }
             else if (RefundEnabled && !PluginConfig.enableCreditRefund.Value)
             {
-                On.RoR2.CombatDirector.Spawn -= CombatDirector_Spawn;
+                GlobalEventManager.onCharacterDeathGlobal -= GlobalEventManager_onCharacterDeathGlobal;
 
                 RefundEnabled = false;
             }
 
             // enemy variety
-            if (!HooksEnabled && PluginConfig.enableSpawnDiversity.Value)
+            if (!HooksEnabled && VarietyEnabled)
             {
                 On.RoR2.CombatDirector.Simulate += CombatDirector_Simulate;
                 On.RoR2.Chat.SendBroadcastChat_ChatMessageBase += ChangeMessage;
@@ -58,7 +59,7 @@ namespace DirectorRework.Hooks
 
                 HooksEnabled = true;
             }
-            else if (HooksEnabled && !PluginConfig.enableSpawnDiversity.Value)
+            else if (HooksEnabled && !VarietyEnabled)
             {
                 On.RoR2.CombatDirector.Simulate -= CombatDirector_Simulate;
                 On.RoR2.Chat.SendBroadcastChat_ChatMessageBase -= ChangeMessage;
@@ -73,7 +74,7 @@ namespace DirectorRework.Hooks
             // refund
             if (RefundEnabled)
             {
-                On.RoR2.CombatDirector.Spawn -= CombatDirector_Spawn;
+                GlobalEventManager.onCharacterDeathGlobal -= GlobalEventManager_onCharacterDeathGlobal;
 
                 RefundEnabled = false;
             }
@@ -92,14 +93,15 @@ namespace DirectorRework.Hooks
         {
             orig(self, deltaTime);
 
-            if (self.currentMonsterCard != null)
+            if (VarietyEnabled && self.currentMonsterCard != null)
             {
                 float monsterSpawnTimer = self.monsterSpawnTimer;
                 int spawnCountInCurrentWave = self.spawnCountInCurrentWave;
 
                 if (self == TeleporterInteraction.instance?.bossDirector)
                 {
-                    self.SetNextSpawnAsBoss();
+                    if (PluginConfig.enableBossDiversity.Value)
+                        self.SetNextSpawnAsBoss();
                 }
                 else if (ArenaMissionController.instance?.activeMonsterCards?.Any() == true)
                 {
@@ -108,7 +110,8 @@ namespace DirectorRework.Hooks
                 }
                 else if (self.finalMonsterCardsSelection != null && self.finalMonsterCardsSelection.Count > 0)
                 {
-                    self.PrepareNewMonsterWave(self.finalMonsterCardsSelection.Evaluate(self.rng.nextNormalizedFloat));
+                    if (PluginConfig.enableSpawnDiversity.Value)
+                        self.PrepareNewMonsterWave(self.finalMonsterCardsSelection.Evaluate(self.rng.nextNormalizedFloat));
                 }
 
                 self.monsterSpawnTimer = monsterSpawnTimer;
@@ -118,7 +121,7 @@ namespace DirectorRework.Hooks
 
         private void ChangeMessage(On.RoR2.Chat.orig_SendBroadcastChat_ChatMessageBase orig, ChatMessageBase message)
         {
-            if (message is Chat.SubjectFormatChatMessage chat && chat.paramTokens?.Any() is true && chat.baseToken is "SHRINE_COMBAT_USE_MESSAGE")
+            if (PluginConfig.enableSpawnDiversity.Value && message is Chat.SubjectFormatChatMessage chat && chat.paramTokens?.Any() is true && chat.baseToken is "SHRINE_COMBAT_USE_MESSAGE")
                 chat.paramTokens[0] = Language.GetString("LOGBOOK_CATEGORY_MONSTER").ToLower();
 
             // Replace with generic message since shrine will have multiple enemy types
@@ -128,6 +131,9 @@ namespace DirectorRework.Hooks
         private void UpdateTitle(On.RoR2.BossGroup.orig_UpdateBossMemories orig, BossGroup self)
         {
             orig(self);
+
+            if (!PluginConfig.enableBossDiversity.Value)
+                return;
 
             var health = new Dictionary<(string, string), float>();
             float maximum = 0;
@@ -165,19 +171,28 @@ namespace DirectorRework.Hooks
             }
         }
 
-        private bool CombatDirector_Spawn(On.RoR2.CombatDirector.orig_Spawn orig, RoR2.CombatDirector self, SpawnCard spawnCard, EliteDef eliteDef, Transform spawnTarget,
-            DirectorCore.MonsterSpawnDistance spawnDistance, bool preventOverhead, float valueMultiplier, DirectorPlacementRule.PlacementMode placementMode)
+        private void GlobalEventManager_onCharacterDeathGlobal(DamageReport report)
         {
-            var result = orig(self, spawnCard, eliteDef, spawnTarget, spawnDistance, preventOverhead, valueMultiplier, placementMode);
-            if (result)
+            if (!NetworkServer.active || !PluginConfig.enableCreditRefund.Value || PluginConfig.creditRefundMultiplier.Value <= 0 || CombatDirector.instancesList.Count <= 0)
+                return;
+
+            var body = report?.victimBody;
+            if (body && !body.isBoss && !body.isChampion && body.cost > 0f && body.teamComponent.teamIndex == TeamIndex.Monster)
             {
-                var refund = PluginConfig.creditRefundMultiplier.Value * 0.01f * spawnCard.directorCreditCost * valueMultiplier;
-
-                self.monsterCredit += refund;
-                self.totalCreditsSpent += refund;
+                var combatDirector = CombatDirector.instancesList.ElementAtOrDefault(UnityEngine.Random.Range(0, CombatDirector.instancesList.Count));
+                if (combatDirector)
+                {
+                    var refund = PluginConfig.creditRefundMultiplier.Value * 0.01f * body.cost;
+                    if (body.isElite || CombatDirector.IsEliteOnlyArtifactActive())
+                    {
+                        combatDirector.monsterCredit += refund;
+                    }
+                    else
+                    {
+                        combatDirector.refundedMonsterCredit += refund;
+                    }
+                }
             }
-
-            return result;
         }
     }
 }
