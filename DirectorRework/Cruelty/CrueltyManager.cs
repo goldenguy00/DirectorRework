@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using DirectorRework.Config;
 using RoR2;
 
@@ -74,7 +75,7 @@ namespace DirectorRework.Cruelty
         }
 
 
-        internal static bool IsValid(EliteDef ed, List<BuffIndex> currentBuffs)
+        internal static bool IsValid(EliteDef ed, HashSet<BuffIndex> currentBuffs)
         {
             return ed && ed.IsAvailable() && ed.eliteEquipmentDef &&
                    ed.eliteEquipmentDef.passiveBuffDef &&

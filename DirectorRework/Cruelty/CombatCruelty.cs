@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using DirectorRework.Config;
 using RoR2;
@@ -31,7 +32,7 @@ namespace DirectorRework.Cruelty
                                 return;
 
                             //Check amount of elite buffs the target has
-                            List<BuffIndex> currentEliteBuffs = [];
+                            HashSet<BuffIndex> currentEliteBuffs = [];
                             foreach (var b in BuffCatalog.eliteBuffIndices)
                             {
                                 if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
@@ -48,7 +49,7 @@ namespace DirectorRework.Cruelty
             }
         }
 
-        private static void OnSpawnedServer(CombatDirector director, CharacterBody body, Inventory inventory, List<BuffIndex> currentEliteBuffs)
+        private static void OnSpawnedServer(CombatDirector director, CharacterBody body, Inventory inventory, HashSet<BuffIndex> currentEliteBuffs)
         {
             var dr = body.GetComponent<DeathRewards>();
             uint xp = 0, gold = 0;
@@ -63,10 +64,7 @@ namespace DirectorRework.Cruelty
                 //Fill in equipment slot if it isn't filled
                 if (inventory.currentEquipmentIndex == EquipmentIndex.None)
                     inventory.SetEquipmentIndex(result.def.eliteEquipmentDef.equipmentIndex);
-                //else
-                //    inventory.SetEquipmentIndexForSlot(result.def.eliteEquipmentDef.equipmentIndex, (uint)inventory.GetEquipmentSlotCount());
 
-                //Apply Elite Bonus
                 var buff = result.def.eliteEquipmentDef.passiveBuffDef.buffIndex;
                 currentEliteBuffs.Add(buff);
                 body.AddBuff(buff);
@@ -90,20 +88,21 @@ namespace DirectorRework.Cruelty
         }
 
 
-        private static bool GetRandom(float availableCredits, DirectorCard card, Xoroshiro128Plus rng, List<BuffIndex> currentBuffs, out (EliteDef def, float cost) result)
+        private static bool GetRandom(float availableCredits, DirectorCard card, Xoroshiro128Plus rng, HashSet<BuffIndex> currentBuffs, out (EliteDef def, float cost) result)
         {
             result = default;
 
             var tiers = CombatDirector.eliteTiers;
-            if (tiers == null || tiers.Length == 0)
+            if (tiers is null || tiers.Length == 0)
                 return false;
 
-            var cost = card?.cost ?? 0;
+            // +1 is the cost once the affix is applied
+            var cost = (card?.cost ?? 0) / (currentBuffs.Count + 1);
 
             var availableDefs =
                 from etd in tiers
-                where IsValid(etd, card, cost, availableCredits, currentBuffs.Count)
-                from ed in etd.availableDefs
+                where IsValid(etd, card, cost, availableCredits)
+                from ed in etd.eliteTypes
                 where CrueltyManager.IsValid(ed, currentBuffs)
                 select (ed, etd.costMultiplier * cost);
 
@@ -119,13 +118,13 @@ namespace DirectorRework.Cruelty
         }
 
 
-        private static bool IsValid(CombatDirector.EliteTierDef etd, DirectorCard card, int cost, float availableCredits, int affixes)
+        private static bool IsValid(CombatDirector.EliteTierDef etd, DirectorCard card, int cost, float availableCredits)
         {
-            // +1 is the cost once the affix is applied
-            var canAfford = availableCredits >= cost * etd.costMultiplier / (affixes + 1);
-
-            return etd != null && !etd.canSelectWithoutAvailableEliteDef && canAfford &&
-                   (card == null || etd.CanSelect(card.spawnCard.eliteRules));
+            if (etd?.canSelectWithoutAvailableEliteDef == false && (card is null || etd.CanSelect(card.spawnCard.eliteRules)))
+            {
+                return availableCredits >= cost * etd.costMultiplier;
+            }
+            return false;
         }
     }
 }

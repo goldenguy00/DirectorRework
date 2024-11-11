@@ -1,4 +1,5 @@
-﻿using BepInEx.Configuration;
+﻿using System;
+using BepInEx.Configuration;
 
 namespace DirectorRework.Config
 {
@@ -39,10 +40,10 @@ namespace DirectorRework.Config
             MainConfig = cfg;
             RiskOfOptions.ModSettingsManager.SetModDescription("Director Rework Plus Essentially.");
 
-            string section = "Modules";
+            string section = "1. Modules";
             enableCruelty = cfg.BindOption(section,
                 "Enable Affix Stacking",
-                true,
+                false,
                 "Enables Affix Stacking (highly inspired by Artifact of Cruelty in RiskyArtifacts). Disable to prevent all modifications in 'Affixes/Cruelty' from loading.");
 
             enableDirectorMain = cfg.BindOption(section,
@@ -53,12 +54,13 @@ namespace DirectorRework.Config
             enableDirectorTweaks = cfg.BindOption(section,
                 "Enable Combat Director Tweaks",
                 true,
-                "Enables a variety of configurable Combat Director options. Intended for fine tuning the pacing of spawns. Disable to prevent all modifications in 'Director Tweaks' from loading.");
+                "!!! Highly recommend to disable/zero out other mods that modify the combat director. Some options will stack exponentially !!!" +
+                "\r\n\r\nEnables a variety of configurable Combat Director options. Intended for fine tuning the pacing of spawns. Disable to prevent all modifications in 'Director Tweaks' from loading.");
 
-            section = "Affixes/Cruelty";
+            section = "2. Affixes/Cruelty";
             maxAffixes = cfg.BindOptionSlider(section,
                 "Max Additional Affixes",
-                4,
+                3,
                 "Maximum Affixes that an enemy can have. Combat Director will still need to afford the combined credit cost of the new enemy.",
                 1, 10);
 
@@ -69,18 +71,18 @@ namespace DirectorRework.Config
 
             allowBosses = cfg.BindOption(section,
                 "Allow Boss Affix Stacking",
-                true,
+                false,
                 "Allows bosses to recieve additional affixes.");
 
             triggerChance = cfg.BindOptionSlider(section,
                 "Trigger Chance",
-                25,
+                20,
                 "Chance to apply the first additional affix to an enemy. Set to 100 to make it always apply.",
                 0, 100);
 
             successChance = cfg.BindOptionSlider(section,
                 "Additional Affix Chance",
-                25,
+                20,
                 "Chance to add an additional affix after the first. Set to 100 to make it always attempt to add as many affixes as possible.",
                 0, 100);
 
@@ -90,7 +92,7 @@ namespace DirectorRework.Config
                 "Only applies additional affixes to enemies that are already elite. Setting this to false will increase the occurrance of elites as a whole.");
 
 
-            section = "Director Main";
+            section = "3. Director Main";
             enableBossDiversity = cfg.BindOption(section,
                 "Enable Boss Diversity",
                 true,
@@ -122,22 +124,23 @@ namespace DirectorRework.Config
             creditMultiplier = cfg.BindOptionSlider(section,
                 "Credit Multiplier",
                 1f,
-                "How much to multiply money wave yield by.");
+                "How much to multiply money wave yield by. Vanilla is 1. " +
+                "\r\n\r\n!!! ITS RECOMMENDED TO SET ALL OTHER MODS TO 1 !!!");
 
             eliteBiasMultiplier = cfg.BindOptionSlider(section,
                 "Elite Bias Cost Multiplier",
                 1f,
-                "Multiplies the elite selection cost. Higher numbers result in higher cost and therefore less elites.");
+                "Multiplies the elite selection cost. Higher numbers result in higher cost and therefore less elites. Vanilla is 1");
 
             minimumRerollSpawnIntervalMultiplier = cfg.BindOptionSlider(section,
                 "Minimum Reroll Spawn Interval",
-                2.3333333f,
-                "Used when a spawn is rejected and the director needs to wait to build more credits.");
+                4.3333333f,
+                "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 2.33333");
 
             maximumRerollSpawnIntervalMultiplier = cfg.BindOptionSlider(section,
                 "Maximum Reroll Spawn Interval",
-                4.3333335f,
-                "Used when a spawn is rejected and the director needs to wait to build more credits.");
+                6.3333335f,
+                "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 4.33333");
 
             creditMultiplierForEachMountainShrine = cfg.BindOptionSlider(section,
                 "Credit Multiplier For Each Mountain Shrine",
@@ -147,17 +150,17 @@ namespace DirectorRework.Config
             goldAndExperienceMultiplierForEachMountainShrine = cfg.BindOptionSlider(section,
                 "Gold And Experience Multiplier For Each Mountain Shrine",
                 1f,
-                "Gold and Exp multiplier for the teleporter director for each mountain shrine");
+                "Gold and Exp multiplier for the teleporter director for each mountain shrine. Vanilla is 1");
 
             maximumNumberToSpawnBeforeSkipping = cfg.BindOptionSlider(section,
                 "Maximum Number To Spawn Before Skipping",
-                6,
-                "Maximum number of enemies in a single wave. If the director can afford more than this, it'll reroll the spawncard.");
+                10,
+                "Maximum number of enemies in a single wave. If the director can afford more than this, it'll reroll the spawncard. Vanilla is 6");
 
             maxConsecutiveCheapSkips = cfg.BindOptionSlider(section,
                 "Max Consecutive Cheap Skips",
-                -1,
-                "If skipSpawnIfTooCheap is true, we'll behave as though it's not set after this many consecutive skips.", -1, 20);
+                2,
+                "If skipSpawnIfTooCheap is true, we'll behave as though it's not set after this many consecutive skips. Vanilla is -1", -1, 20);
 
         }
 
@@ -171,7 +174,11 @@ namespace DirectorRework.Config
             if (restartRequired)
                 description += " (restart required)";
 
-            var configEntry = myConfig.Bind(section, name, defaultValue, description);
+            AcceptableValueBase range = null;
+            if (typeof(T).IsEnum)
+                range = new AcceptableValueList<string>(Enum.GetNames(typeof(T)));
+
+            var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, range));
             TryRegisterOption(configEntry, restartRequired);
 
             return configEntry;
@@ -187,7 +194,13 @@ namespace DirectorRework.Config
             if (restartRequired)
                 description += " (restart required)";
 
-            var configEntry = myConfig.Bind(section, name, defaultValue, description);
+            AcceptableValueBase range;
+            if (typeof(T) == typeof(int))
+                range = new AcceptableValueRange<int>((int)min, (int)max);
+            else
+                range = new AcceptableValueRange<float>(min, max);
+
+            var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, range));
 
             TryRegisterOptionSlider(configEntry, min, max, restartRequired);
 
@@ -200,7 +213,11 @@ namespace DirectorRework.Config
         {
             if (entry is ConfigEntry<string> stringEntry)
             {
-                RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.StringInputFieldOption(stringEntry, restartRequired));
+                RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.StringInputFieldOption(stringEntry, new RiskOfOptions.OptionConfigs.InputFieldConfig()
+                {
+                    submitOn = RiskOfOptions.OptionConfigs.InputFieldConfig.SubmitEnum.OnExitOrSubmit,
+                    restartRequired = restartRequired
+                }));
                 return;
             }
             if (entry is ConfigEntry<float> floatEntry)

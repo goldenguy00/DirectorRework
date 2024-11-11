@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using DirectorRework.Config;
 using RoR2;
@@ -35,7 +36,7 @@ namespace DirectorRework.Cruelty
                                 return;
 
                             //Check amount of elite buffs the target has
-                            List<BuffIndex> currentEliteBuffs = [];
+                            HashSet<BuffIndex> currentEliteBuffs = [];
                             foreach (var b in BuffCatalog.eliteBuffIndices)
                             {
                                 if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
@@ -52,7 +53,7 @@ namespace DirectorRework.Cruelty
             }
         }
 
-        public static void OnMemberAddedServer(CharacterBody body, Inventory inventory, List<BuffIndex> currentEliteBuffs, Xoroshiro128Plus rng)
+        public static void OnMemberAddedServer(CharacterBody body, Inventory inventory, HashSet<BuffIndex> currentEliteBuffs, Xoroshiro128Plus rng)
         {
             var dr = body.GetComponent<DeathRewards>();
             uint xp = 0, gold = 0;
@@ -61,16 +62,12 @@ namespace DirectorRework.Cruelty
                 xp = dr.expReward;
                 gold = dr.goldReward;
             }
-
             while (currentEliteBuffs.Count < PluginConfig.maxAffixes.Value && GetScriptedRandom(rng, currentEliteBuffs, out var result))
             {
                 //Fill in equipment slot if it isn't filled
                 if (inventory.currentEquipmentIndex == EquipmentIndex.None)
                     inventory.SetEquipmentIndex(result.eliteEquipmentDef.equipmentIndex);
-                //else
-                //    inventory.SetEquipmentIndexForSlot(result.eliteEquipmentDef.equipmentIndex, (uint)inventory.GetEquipmentSlotCount());
 
-                //Apply Elite Bonus
                 var buff = result.eliteEquipmentDef.passiveBuffDef.buffIndex;
                 currentEliteBuffs.Add(buff);
                 body.AddBuff(buff);
@@ -78,10 +75,13 @@ namespace DirectorRework.Cruelty
                 float affixes = currentEliteBuffs.Count;
                 inventory.GiveItem(RoR2Content.Items.BoostHp, Mathf.RoundToInt((result.healthBoostCoefficient - 1f) * 10f / affixes));
                 inventory.GiveItem(RoR2Content.Items.BoostDamage, Mathf.RoundToInt((result.damageBoostCoefficient - 1f) * 10f / affixes));
+
                 if (dr)
                 {
-                    dr.expReward += Convert.ToUInt32(xp / affixes);
-                    dr.goldReward += Convert.ToUInt32(gold / affixes);
+                    if (xp != 0)
+                        dr.expReward += Convert.ToUInt32(xp / affixes);
+                    if (gold != 0)
+                        dr.goldReward += Convert.ToUInt32(gold / affixes);
                 }
 
                 if (!Util.CheckRoll(PluginConfig.successChance.Value))
@@ -89,21 +89,20 @@ namespace DirectorRework.Cruelty
             }
         }
 
-        private static bool GetScriptedRandom(Xoroshiro128Plus rng, List<BuffIndex> currentBuffs, out EliteDef result)
+        private static bool GetScriptedRandom(Xoroshiro128Plus rng, HashSet<BuffIndex> currentBuffs, out EliteDef result)
         {
             result = null;
 
-            var tiers = CombatDirector.eliteTiers;
-            if (tiers == null || tiers.Length == 0)
+            var tiers = R2API.EliteAPI.GetCombatDirectorEliteTiers();
+            if (tiers?.Length == 0)
                 return false;
 
             var availableDefs =
                 from etd in tiers
-                where etd != null && !etd.canSelectWithoutAvailableEliteDef
-                from ed in etd.availableDefs
+                where etd?.canSelectWithoutAvailableEliteDef == false
+                from ed in etd.eliteTypes
                 where CrueltyManager.IsValid(ed, currentBuffs)
                 select ed;
-
 
             if (availableDefs.Any())
             {
