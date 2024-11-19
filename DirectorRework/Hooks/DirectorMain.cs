@@ -18,11 +18,11 @@ namespace DirectorRework.Hooks
 
         private DirectorMain()
         {
+            OnSettingChanged(null, null);
+
             PluginConfig.enableDirectorMain.SettingChanged += OnSettingChanged;
             PluginConfig.enableSpawnDiversity.SettingChanged += OnSettingChanged;
             PluginConfig.enableCreditRefund.SettingChanged += OnSettingChanged;
-
-            OnSettingChanged(null, null);
         }
 
         // fuck i hate this, worth a try tho
@@ -89,6 +89,7 @@ namespace DirectorRework.Hooks
                 HooksEnabled = false;
             }
         }
+
         private void CombatDirector_Simulate(On.RoR2.CombatDirector.orig_Simulate orig, CombatDirector self, float deltaTime)
         {
             orig(self, deltaTime);

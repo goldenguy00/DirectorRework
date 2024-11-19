@@ -11,7 +11,12 @@ namespace DirectorRework
             _logSource = logSource;
         }
 
-        public static void Debug(string data) => _logSource.LogDebug(data);
+        public static void Debug(string data)
+        {
+#if DEBUG
+            _logSource.LogDebug(data);
+#endif
+        }
         public static void Error(string data) => _logSource.LogError(data);
         public static void Fatal(string data) => _logSource.LogFatal(data);
         public static void Info(string data) => _logSource.LogInfo(data);

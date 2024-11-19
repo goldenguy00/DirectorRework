@@ -1,10 +1,11 @@
 ﻿using System;
+using BepInEx.Configuration;
 using DirectorRework.Config;
 using RoR2;
 
 namespace DirectorRework.Hooks
 {
-    internal class DirectorTweaks : IHookProvider
+    internal class DirectorTweaks
     {
         public bool HooksEnabled { get; set; }
 
@@ -14,16 +15,42 @@ namespace DirectorRework.Hooks
 
         private DirectorTweaks()
         {
-            PluginConfig.enableDirectorTweaks.SettingChanged += OnSettingChanged;
             OnSettingChanged(null, null);
+            PluginConfig.enableDirectorTweaks.SettingChanged += OnSettingChanged;
+
+            PluginConfig.minimumRerollSpawnIntervalMultiplier.SettingChanged += OnSettingValuesChanged;
+            PluginConfig.maximumRerollSpawnIntervalMultiplier.SettingChanged += OnSettingValuesChanged;
+            PluginConfig.creditMultiplier.SettingChanged += OnSettingValuesChanged;
+            PluginConfig.eliteBiasMultiplier.SettingChanged += OnSettingValuesChanged;
+            PluginConfig.creditMultiplierForEachMountainShrine.SettingChanged += OnSettingValuesChanged;
+            PluginConfig.goldAndExperienceMultiplierForEachMountainShrine.SettingChanged += OnSettingValuesChanged;
+            PluginConfig.maximumNumberToSpawnBeforeSkipping.SettingChanged += OnSettingValuesChanged;
+            PluginConfig.maxConsecutiveCheapSkips.SettingChanged += OnSettingValuesChanged;
         }
 
         public void OnSettingChanged(object sender, EventArgs args)
         {
             if (PluginConfig.enableDirectorTweaks.Value)
                 SetHooks();
-            else 
+            else
                 UnsetHooks();
+        }
+
+        public void OnSettingValuesChanged(object sender, EventArgs args)
+        {
+            if (HooksEnabled)
+            {
+                foreach (var director in CombatDirector.instancesList)
+                {
+                    if (PluginConfig.maxConsecutiveCheapSkips.Value >= 0)
+                        director.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.Value;
+                    director.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.Value;
+                    director.minRerollSpawnInterval = PluginConfig.minimumRerollSpawnIntervalMultiplier.Value;
+                    director.maxRerollSpawnInterval = PluginConfig.maximumRerollSpawnIntervalMultiplier.Value;
+                    director.creditMultiplier = PluginConfig.creditMultiplier.Value;
+                    director.eliteBias = PluginConfig.eliteBiasMultiplier.Value;
+                }
+            }
         }
 
         public void SetHooks()
@@ -32,6 +59,7 @@ namespace DirectorRework.Hooks
             {
                 On.RoR2.CombatDirector.OnEnable += CombatDirector_OnEnable;
                 On.RoR2.TeleporterInteraction.ChargingState.OnEnter += ChargingState_OnEnter;
+
                 HooksEnabled = true;
             }
         }
@@ -49,7 +77,7 @@ namespace DirectorRework.Hooks
 
         private void ChargingState_OnEnter(On.RoR2.TeleporterInteraction.ChargingState.orig_OnEnter orig, EntityStates.BaseState self)
         {
-            if (PluginConfig.enableDirectorTweaks.Value && self is TeleporterInteraction.ChargingState state && state != null && state.teleporterInteraction)
+            if (PluginConfig.enableDirectorTweaks.Value && self is TeleporterInteraction.ChargingState state && state.teleporterInteraction)
             {
                 var stacks = state.teleporterInteraction.shrineBonusStacks;
                 if (stacks > 0)

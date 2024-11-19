@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using DirectorRework.Config;
+using DirectorRework.Hooks;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -11,6 +12,12 @@ namespace DirectorRework.Cruelty
 {
     public static class CombatCruelty
     {
+        public readonly struct EliteWithCost(EliteDef def, float cost)
+        {
+            public readonly EliteDef eliteDef = def;
+            public readonly float cost = cost;
+        }
+
         public static void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
         {
             orig(self);
@@ -19,76 +26,71 @@ namespace DirectorRework.Cruelty
             {
                 self.onSpawnedServer.AddListener((masterObject) =>
                 {
-                    if (!PluginConfig.enableCruelty.Value || !Util.CheckRoll(PluginConfig.triggerChance.Value))
-                        return;
-
-                    var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
-                    if (master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
+                    if (PluginConfig.enableCruelty.Value && Util.CheckRoll(PluginConfig.triggerChance.Value))
                     {
-                        var body = master.GetBody();
-                        if (body)
+                        var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
+                        if (master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
                         {
-                            if (!PluginConfig.allowBosses.Value && (master.isBoss || body.isChampion))
-                                return;
-
-                            //Check amount of elite buffs the target has
-                            HashSet<BuffIndex> currentEliteBuffs = [];
-                            foreach (var b in BuffCatalog.eliteBuffIndices)
+                            var body = master.GetBody();
+                            if (body)
                             {
-                                if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
-                                    currentEliteBuffs.Add(b);
+                                var isBoss = master.isBoss || body.isChampion;
+                                if (!PluginConfig.allowBosses.Value && isBoss)
+                                    return;
+
+                                var isElite = body.eliteBuffCount > 0 || (PluginConfig.bossesAreElite.Value && isBoss);
+                                if (PluginConfig.onlyApplyToElites.Value && !isElite)
+                                    return;
+
+                                CombatCruelty.OnSpawnedServer(self, body, master.inventory);
                             }
-
-                            if (PluginConfig.onlyApplyToElites.Value && !currentEliteBuffs.Any())
-                                return;
-
-                            CombatCruelty.OnSpawnedServer(self, body, master.inventory, currentEliteBuffs);
                         }
                     }
                 });
             }
         }
 
-        private static void OnSpawnedServer(CombatDirector director, CharacterBody body, Inventory inventory, HashSet<BuffIndex> currentEliteBuffs)
+        private static void OnSpawnedServer(CombatDirector director, CharacterBody body, Inventory inventory)
         {
-            var dr = body.GetComponent<DeathRewards>();
-            uint xp = 0, gold = 0;
-            if (dr)
+            //Check amount of elite buffs the target has
+            List<BuffIndex> currentEliteBuffs = HG.ListPool<BuffIndex>.RentCollection();
+            foreach (var b in BuffCatalog.eliteBuffIndices)
             {
-                xp = dr.expReward;
-                gold = dr.goldReward;
+                if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
+                    currentEliteBuffs.Add(b);
             }
 
-            while (director.monsterCredit > 0 && currentEliteBuffs.Count < PluginConfig.maxAffixes.Value && GetRandom(director.monsterCredit, director.currentMonsterCard, director.rng, currentEliteBuffs, out var result))
+            uint xp = 0, gold = 0;
+            if (body.TryGetComponent<DeathRewards>(out var deathRewards))
             {
-                //Fill in equipment slot if it isn't filled
-                if (inventory.currentEquipmentIndex == EquipmentIndex.None)
-                    inventory.SetEquipmentIndex(result.def.eliteEquipmentDef.equipmentIndex);
+                xp = deathRewards.expReward;
+                gold = deathRewards.goldReward;
+            }
 
-                var buff = result.def.eliteEquipmentDef.passiveBuffDef.buffIndex;
+            while (director.monsterCredit > 0 && currentEliteBuffs.Count < PluginConfig.maxAffixes.Value && GetRandom(director.monsterCredit, director.currentMonsterCard, director.rng, currentEliteBuffs, out EliteWithCost result))
+            {
+                CrueltyManager.GiveAffix(inventory, result.eliteDef.eliteEquipmentDef.equipmentIndex);
+
+                var buff = result.eliteDef.eliteEquipmentDef.passiveBuffDef.buffIndex;
                 currentEliteBuffs.Add(buff);
                 body.AddBuff(buff);
 
-                // some fuckery here
-                float affixes = currentEliteBuffs.Count;
-                director.monsterCredit -= result.cost / affixes;
-                body.cost += result.cost / affixes;
-                inventory.GiveItem(RoR2Content.Items.BoostHp, Mathf.RoundToInt((result.def.healthBoostCoefficient - 1f) * 10f / (affixes + 1)));
-                inventory.GiveItem(RoR2Content.Items.BoostDamage, Mathf.RoundToInt((result.def.damageBoostCoefficient - 1f) * 10f / (affixes + 1)));
+                int affixes = currentEliteBuffs.Count;
+                director.monsterCredit -= result.cost;
+                body.cost += result.cost;
 
-                if (dr)
-                {
-                    dr.expReward += Convert.ToUInt32(xp / affixes);
-                    dr.goldReward += Convert.ToUInt32(gold / affixes);
-                }
+                CrueltyManager.GiveItemBoosts(inventory, result.eliteDef, affixes);
+                CrueltyManager.GiveDeathReward(deathRewards, xp, gold, affixes);
 
                 if (!Util.CheckRoll(PluginConfig.successChance.Value))
                     break;
             }
+
+            HG.ListPool<BuffIndex>.ReturnCollection(currentEliteBuffs);
         }
 
 
-        private static bool GetRandom(float availableCredits, DirectorCard card, Xoroshiro128Plus rng, HashSet<BuffIndex> currentBuffs, out (EliteDef def, float cost) result)
+        private static bool GetRandom(float availableCredits, DirectorCard card, Xoroshiro128Plus rng, List<BuffIndex> currentBuffs, out EliteWithCost result)
         {
             result = default;
 
@@ -104,7 +106,7 @@ namespace DirectorRework.Cruelty
                 where IsValid(etd, card, cost, availableCredits)
                 from ed in etd.eliteTypes
                 where CrueltyManager.IsValid(ed, currentBuffs)
-                select (ed, etd.costMultiplier * cost);
+                select new EliteWithCost(ed, etd.costMultiplier * cost);
 
 
             if (availableDefs.Any())
@@ -120,7 +122,7 @@ namespace DirectorRework.Cruelty
 
         private static bool IsValid(CombatDirector.EliteTierDef etd, DirectorCard card, int cost, float availableCredits)
         {
-            if (etd?.canSelectWithoutAvailableEliteDef == false && (card is null || etd.CanSelect(card.spawnCard.eliteRules)))
+            if (etd?.canSelectWithoutAvailableEliteDef == false && (!card?.spawnCard || etd.CanSelect(card.spawnCard.eliteRules)))
             {
                 return availableCredits >= cost * etd.costMultiplier;
             }

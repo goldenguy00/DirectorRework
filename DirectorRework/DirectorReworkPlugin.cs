@@ -1,9 +1,9 @@
 using System.Security;
 using System.Security.Permissions;
 using BepInEx;
-using DirectorRework.Cruelty;
 using DirectorRework.Config;
 using DirectorRework.Hooks;
+using BepInEx.Bootstrap;
 
 [module: UnverifiableCode]
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -19,9 +19,11 @@ namespace DirectorRework
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "DirectorReworkPlus";
-        public const string PluginVersion = "1.0.5";
+        public const string PluginVersion = "1.1.0";
 
         public static DirectorReworkPlugin Instance { get; private set; }
+
+        public static bool RooInstalled => Chainloader.PluginInfos.ContainsKey("com.rune580.riskofoptions");
 
         public void Awake()
         {

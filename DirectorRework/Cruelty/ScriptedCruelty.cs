@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using DirectorRework.Config;
+using DirectorRework.Hooks;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -20,81 +21,74 @@ namespace DirectorRework.Cruelty
                 var rng = self.rng;
                 self.combatSquad.onMemberAddedServer += (master) =>
                 {
-                    if (!PluginConfig.enableCruelty.Value)
-                        return;
-
-                    var forceApply = PluginConfig.guaranteeSpecialBoss.Value;
-                    if (!forceApply && !Util.CheckRoll(PluginConfig.triggerChance.Value))
-                        return;
-
-                    if (master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
+                    if (PluginConfig.enableCruelty.Value && master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
                     {
                         var body = master.GetBody();
                         if (body)
                         {
-                            if (!forceApply && !PluginConfig.allowBosses.Value && (master.isBoss || body.isChampion))
-                                return;
-
-                            //Check amount of elite buffs the target has
-                            HashSet<BuffIndex> currentEliteBuffs = [];
-                            foreach (var b in BuffCatalog.eliteBuffIndices)
+                            if (!PluginConfig.guaranteeSpecialBoss.Value)
                             {
-                                if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
-                                    currentEliteBuffs.Add(b);
+                                if (!Util.CheckRoll(PluginConfig.triggerChance.Value))
+                                    return;
+
+                                var isBoss = master.isBoss || body.isChampion;
+                                if (!PluginConfig.allowBosses.Value && isBoss)
+                                    return;
+
+                                var isElite = body.eliteBuffCount > 0 || (PluginConfig.bossesAreElite.Value && isBoss);
+                                if (PluginConfig.onlyApplyToElites.Value && !isElite)
+                                    return;
                             }
 
-                            if (!forceApply && PluginConfig.onlyApplyToElites.Value && !currentEliteBuffs.Any())
-                                return;
-
-                            ScriptedCruelty.OnMemberAddedServer(body, master.inventory, currentEliteBuffs, rng);
+                            ScriptedCruelty.OnMemberAddedServer(body, master.inventory, rng);
                         }
                     }
                 };
             }
         }
 
-        public static void OnMemberAddedServer(CharacterBody body, Inventory inventory, HashSet<BuffIndex> currentEliteBuffs, Xoroshiro128Plus rng)
+        public static void OnMemberAddedServer(CharacterBody body, Inventory inventory, Xoroshiro128Plus rng)
         {
-            var dr = body.GetComponent<DeathRewards>();
-            uint xp = 0, gold = 0;
-            if (dr)
+            //Check amount of elite buffs the target has
+            List<BuffIndex> currentEliteBuffs = HG.ListPool<BuffIndex>.RentCollection();
+            foreach (var b in BuffCatalog.eliteBuffIndices)
             {
-                xp = dr.expReward;
-                gold = dr.goldReward;
+                if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
+                    currentEliteBuffs.Add(b);
             }
-            while (currentEliteBuffs.Count < PluginConfig.maxAffixes.Value && GetScriptedRandom(rng, currentEliteBuffs, out var result))
+
+            uint xp = 0, gold = 0;
+            if (body.TryGetComponent<DeathRewards>(out var deathReward))
             {
-                //Fill in equipment slot if it isn't filled
-                if (inventory.currentEquipmentIndex == EquipmentIndex.None)
-                    inventory.SetEquipmentIndex(result.eliteEquipmentDef.equipmentIndex);
+                xp = deathReward.expReward;
+                gold = deathReward.goldReward;
+            }
+
+            while (currentEliteBuffs.Count < PluginConfig.maxScriptedAffixes.Value && GetScriptedRandom(rng, currentEliteBuffs, out var result))
+            {
+                CrueltyManager.GiveAffix(inventory, result.eliteEquipmentDef.equipmentIndex);
 
                 var buff = result.eliteEquipmentDef.passiveBuffDef.buffIndex;
                 currentEliteBuffs.Add(buff);
                 body.AddBuff(buff);
 
-                float affixes = currentEliteBuffs.Count;
-                inventory.GiveItem(RoR2Content.Items.BoostHp, Mathf.RoundToInt((result.healthBoostCoefficient - 1f) * 10f / affixes));
-                inventory.GiveItem(RoR2Content.Items.BoostDamage, Mathf.RoundToInt((result.damageBoostCoefficient - 1f) * 10f / affixes));
-
-                if (dr)
-                {
-                    if (xp != 0)
-                        dr.expReward += Convert.ToUInt32(xp / affixes);
-                    if (gold != 0)
-                        dr.goldReward += Convert.ToUInt32(gold / affixes);
-                }
+                int affixes = currentEliteBuffs.Count;
+                CrueltyManager.GiveItemBoosts(inventory, result, affixes);
+                CrueltyManager.GiveDeathReward(deathReward, xp, gold, affixes);
 
                 if (!Util.CheckRoll(PluginConfig.successChance.Value))
                     break;
             }
+
+            HG.ListPool<BuffIndex>.ReturnCollection(currentEliteBuffs);
         }
 
-        private static bool GetScriptedRandom(Xoroshiro128Plus rng, HashSet<BuffIndex> currentBuffs, out EliteDef result)
+        private static bool GetScriptedRandom(Xoroshiro128Plus rng, List<BuffIndex> currentBuffs, out EliteDef result)
         {
             result = null;
 
-            var tiers = R2API.EliteAPI.GetCombatDirectorEliteTiers();
-            if (tiers?.Length == 0)
+            var tiers = CombatDirector.eliteTiers;
+            if (tiers is null || tiers.Length == 0)
                 return false;
 
             var availableDefs =
