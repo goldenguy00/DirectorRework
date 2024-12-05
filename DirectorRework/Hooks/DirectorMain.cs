@@ -181,17 +181,10 @@ namespace DirectorRework.Hooks
             if (body && !body.isBoss && !body.isChampion && body.cost > 0f && body.teamComponent.teamIndex == TeamIndex.Monster)
             {
                 var combatDirector = CombatDirector.instancesList.ElementAtOrDefault(UnityEngine.Random.Range(0, CombatDirector.instancesList.Count));
-                if (combatDirector)
+                if (combatDirector && combatDirector.isActiveAndEnabled)
                 {
                     var refund = PluginConfig.creditRefundMultiplier.Value * 0.01f * body.cost;
-                    if (body.isElite || CombatDirector.IsEliteOnlyArtifactActive())
-                    {
-                        combatDirector.monsterCredit += refund;
-                    }
-                    else
-                    {
-                        combatDirector.refundedMonsterCredit += refund;
-                    }
+                    combatDirector.monsterCredit += refund;
                 }
             }
         }

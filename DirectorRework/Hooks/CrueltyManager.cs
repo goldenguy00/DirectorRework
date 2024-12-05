@@ -8,6 +8,7 @@ using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using RoR2;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.Networking;
 
 namespace DirectorRework.Hooks
@@ -172,11 +173,13 @@ namespace DirectorRework.Hooks
                 // first empty slot
                 uint targetIndex = 0;
                 for (uint i = 0; i <= target.GetEquipmentSlotCount(); i++)
-                    if (target.GetEquipment(i).Equals(EquipmentState.empty))
+                {
+                    if (target.GetEquipment(i).equipmentIndex == EquipmentIndex.None)
                     {
                         targetIndex = i;
                         break;
                     }
+                }
 
                 for (uint i = 0; i < source.GetEquipmentSlotCount(); i++)
                 {
@@ -191,15 +194,18 @@ namespace DirectorRework.Hooks
             }
         }
 
-        internal static void GiveAffix(Inventory inventory, EquipmentIndex equipmentIdx)
+        internal static void GiveAffix(CharacterBody body, Inventory inventory, EquipmentDef equipment)
         {
             //Fill in first empty equipment slot
             for (uint i = 0; i <= inventory.GetEquipmentSlotCount(); i++)
-                if (inventory.GetEquipment(i).Equals(EquipmentState.empty))
+            {
+                if (inventory.GetEquipment(i).equipmentIndex == EquipmentIndex.None)
                 {
-                    inventory.SetEquipmentIndexForSlot(equipmentIdx, i);
+                    inventory.SetEquipmentIndexForSlot(equipment.equipmentIndex, i);
                     break;
                 }
+            }
+            body.SetBuffCount(equipment.passiveBuffDef.buffIndex, 1);
         }
 
         internal static void GiveItemBoosts(Inventory inventory, EliteDef def, int affixes)

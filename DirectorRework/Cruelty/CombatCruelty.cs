@@ -34,6 +34,7 @@ namespace DirectorRework.Cruelty
                             var body = master.GetBody();
                             if (body)
                             {
+                                master.onBodyDestroyed
                                 var isBoss = master.isBoss || body.isChampion;
                                 if (!PluginConfig.allowBosses.Value && isBoss)
                                     return;
@@ -69,11 +70,9 @@ namespace DirectorRework.Cruelty
 
             while (director.monsterCredit > 0 && currentEliteBuffs.Count < PluginConfig.maxAffixes.Value && GetRandom(director.monsterCredit, director.currentMonsterCard, director.rng, currentEliteBuffs, out EliteWithCost result))
             {
-                CrueltyManager.GiveAffix(inventory, result.eliteDef.eliteEquipmentDef.equipmentIndex);
+                CrueltyManager.GiveAffix(body, inventory, result.eliteDef.eliteEquipmentDef);
 
-                var buff = result.eliteDef.eliteEquipmentDef.passiveBuffDef.buffIndex;
-                currentEliteBuffs.Add(buff);
-                body.AddBuff(buff);
+                currentEliteBuffs.Add(result.eliteDef.eliteEquipmentDef.passiveBuffDef.buffIndex);
 
                 int affixes = currentEliteBuffs.Count;
                 director.monsterCredit -= result.cost;

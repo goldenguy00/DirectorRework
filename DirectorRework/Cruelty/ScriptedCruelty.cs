@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Collections.Generic;
 using System.Linq;
 using DirectorRework.Config;
 using DirectorRework.Hooks;
 using RoR2;
-using UnityEngine;
 using UnityEngine.Networking;
 
 namespace DirectorRework.Cruelty
@@ -33,10 +30,6 @@ namespace DirectorRework.Cruelty
 
                                 var isBoss = master.isBoss || body.isChampion;
                                 if (!PluginConfig.allowBosses.Value && isBoss)
-                                    return;
-
-                                var isElite = body.eliteBuffCount > 0 || (PluginConfig.bossesAreElite.Value && isBoss);
-                                if (PluginConfig.onlyApplyToElites.Value && !isElite)
                                     return;
                             }
 
@@ -66,11 +59,9 @@ namespace DirectorRework.Cruelty
 
             while (currentEliteBuffs.Count < PluginConfig.maxScriptedAffixes.Value && GetScriptedRandom(rng, currentEliteBuffs, out var result))
             {
-                CrueltyManager.GiveAffix(inventory, result.eliteEquipmentDef.equipmentIndex);
+                CrueltyManager.GiveAffix(body, inventory, result.eliteEquipmentDef);
 
-                var buff = result.eliteEquipmentDef.passiveBuffDef.buffIndex;
-                currentEliteBuffs.Add(buff);
-                body.AddBuff(buff);
+                currentEliteBuffs.Add(result.eliteEquipmentDef.passiveBuffDef.buffIndex);
 
                 int affixes = currentEliteBuffs.Count;
                 CrueltyManager.GiveItemBoosts(inventory, result, affixes);
