@@ -31,14 +31,22 @@ namespace DirectorRework.Config
         public static ConfigEntry<bool> enableCreditRefund;
         public static ConfigEntry<int> creditRefundMultiplier;
 
-        public static ConfigEntry<float> minimumRerollSpawnIntervalMultiplier;
-        public static ConfigEntry<float> maximumRerollSpawnIntervalMultiplier;
+        public static ConfigEntry<bool> useRecommendedValues;
+        public static ConfigEntry<float> minRerollSpawnInterval;
+        public static ConfigEntry<float> maxRerollSpawnInterval;
         public static ConfigEntry<float> creditMultiplier;
-        public static ConfigEntry<float> eliteBiasMultiplier;
+        public static ConfigEntry<float> eliteBias;
         public static ConfigEntry<float> creditMultiplierForEachMountainShrine;
         public static ConfigEntry<float> goldAndExperienceMultiplierForEachMountainShrine;
         public static ConfigEntry<int> maximumNumberToSpawnBeforeSkipping;
         public static ConfigEntry<int> maxConsecutiveCheapSkips;
+
+        public static T GetValue<T>(this ConfigEntry<T> entry)
+        {
+            if (useRecommendedValues.Value)
+                return (T)entry.DefaultValue;
+            return entry.Value;
+        }
 
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static void Init(ConfigFile cfg)
@@ -141,52 +149,58 @@ namespace DirectorRework.Config
 
             section = "Director Tweaks";
 
+            useRecommendedValues = cfg.BindOption(section,
+                "Use Recommended Values",
+                true,
+                "If enabled, then the recommended values for this section will be used instead of the ones set in the config. " +
+                "Disable this setting if you want to change this section.");
+
             creditMultiplier = cfg.BindOptionSlider(section,
                 "Credit Multiplier",
                 1f,
                 "How much to multiply money wave yield by. Vanilla is 1. " +
                 "\r\n\r\n!!! ITS RECOMMENDED TO SET ALL OTHER MODS TO 1 !!!",
-                0, 5);
+                0.1f, 5f);
 
-            eliteBiasMultiplier = cfg.BindOptionSlider(section,
+            eliteBias = cfg.BindOptionSlider(section,
                 "Elite Bias Cost Multiplier",
                 1f,
                 "Multiplies the elite selection cost. Higher numbers result in higher cost and therefore less elites. Vanilla is 1",
-                0, 5);
+                0.1f, 5f);
 
-            minimumRerollSpawnIntervalMultiplier = cfg.BindOptionSlider(section,
+            minRerollSpawnInterval = cfg.BindOptionSlider(section,
                 "Minimum Reroll Spawn Interval",
                 4.3333333f,
                 "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 2.33333",
-                0, 20);
+                0.1f, 20f);
 
-            maximumRerollSpawnIntervalMultiplier = cfg.BindOptionSlider(section,
+            maxRerollSpawnInterval = cfg.BindOptionSlider(section,
                 "Maximum Reroll Spawn Interval",
                 6.3333335f,
                 "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 4.33333",
-                0, 20);
+                0.1f, 20f);
 
             creditMultiplierForEachMountainShrine = cfg.BindOptionSlider(section,
                 "Credit Multiplier For Each Mountain Shrine",
                 1f,
                 "Credit multiplier for the teleporter director for each mountain shrine",
-                0, 5);
+                0.1f, 5f);
 
             goldAndExperienceMultiplierForEachMountainShrine = cfg.BindOptionSlider(section,
                 "Gold And Experience Multiplier For Each Mountain Shrine",
                 1f,
                 "Gold and Exp multiplier for the teleporter director for each mountain shrine. Vanilla is 1",
-                0, 5);
+                0.1f, 5f);
 
             maximumNumberToSpawnBeforeSkipping = cfg.BindOptionSlider(section,
                 "Maximum Number To Spawn Before Skipping",
-                10,
+                6,
                 "Maximum number of enemies in a single wave. If the director can afford more than this, it'll reroll the spawncard. Vanilla is 6",
-                0, 20);
+                1, 20);
 
             maxConsecutiveCheapSkips = cfg.BindOptionSlider(section,
                 "Max Consecutive Cheap Skips",
-                2,
+                10,
                 "If skipSpawnIfTooCheap is true, we'll behave as though it's not set after this many consecutive skips. Vanilla is -1",
                 -1, 20);
 
@@ -236,7 +250,9 @@ namespace DirectorRework.Config
                 range = new AcceptableValueList<string>(Enum.GetNames(typeof(T)));
 
             var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, range));
-            TryRegisterOption(configEntry, restartRequired);
+
+            if (DirectorReworkPlugin.RooInstalled)
+                TryRegisterOption(configEntry, restartRequired);
 
             return configEntry;
         }
@@ -267,7 +283,8 @@ namespace DirectorRework.Config
 
             var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, range));
 
-            TryRegisterOptionSlider(configEntry, min, max, restartRequired);
+            if (DirectorReworkPlugin.RooInstalled)
+                TryRegisterOptionSlider(configEntry, min, max, restartRequired);
 
             return configEntry;
         }
@@ -285,7 +302,8 @@ namespace DirectorRework.Config
 
             var configEntry = myConfig.Bind(section, name, defaultValue, new ConfigDescription(description, new AcceptableValueRange<float>(min, max)));
 
-            TryRegisterOptionSteppedSlider(configEntry, increment, min, max, restartRequired);
+            if (DirectorReworkPlugin.RooInstalled)
+                TryRegisterOptionSteppedSlider(configEntry, increment, min, max, restartRequired);
 
             return configEntry;
         }

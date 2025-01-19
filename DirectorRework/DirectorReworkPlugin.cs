@@ -19,7 +19,7 @@ namespace DirectorRework
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "DirectorReworkPlus";
-        public const string PluginVersion = "1.1.0";
+        public const string PluginVersion = "1.1.3";
 
         public static DirectorReworkPlugin Instance { get; private set; }
 

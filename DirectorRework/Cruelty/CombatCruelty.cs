@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Collections.Generic;
 using System.Linq;
 using DirectorRework.Config;
 using DirectorRework.Hooks;
 using RoR2;
-using UnityEngine;
 using UnityEngine.Networking;
 
 namespace DirectorRework.Cruelty
@@ -34,7 +31,6 @@ namespace DirectorRework.Cruelty
                             var body = master.GetBody();
                             if (body)
                             {
-                                master.onBodyDestroyed
                                 var isBoss = master.isBoss || body.isChampion;
                                 if (!PluginConfig.allowBosses.Value && isBoss)
                                     return;
