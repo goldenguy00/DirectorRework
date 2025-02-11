@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using DirectorRework.Config;
 using DirectorRework.Cruelty;
 using EntityStates;
 using HarmonyLib;
@@ -10,7 +9,7 @@ using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace DirectorRework.Hooks
+namespace DirectorRework.Modules
 {
     /// <summary>
     /// Fixed it.

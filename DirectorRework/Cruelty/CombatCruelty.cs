@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using DirectorRework.Config;
-using DirectorRework.Hooks;
+using DirectorRework.Modules;
 using RoR2;
 using UnityEngine.Networking;
 

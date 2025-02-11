@@ -1,9 +1,8 @@
 using System.Security;
 using System.Security.Permissions;
 using BepInEx;
-using DirectorRework.Config;
-using DirectorRework.Hooks;
 using BepInEx.Bootstrap;
+using DirectorRework.Modules;
 
 [module: UnverifiableCode]
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -19,7 +18,7 @@ namespace DirectorRework
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "DirectorReworkPlus";
-        public const string PluginVersion = "1.1.3";
+        public const string PluginVersion = "1.2.0";
 
         public static DirectorReworkPlugin Instance { get; private set; }
 
@@ -35,6 +34,7 @@ namespace DirectorRework
             CrueltyManager.Init();
             DirectorMain.Init();
             DirectorTweaks.Init();
+            ScalingTweaks.Init();
         }
     }
 }

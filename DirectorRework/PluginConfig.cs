@@ -4,17 +4,16 @@ using System.Runtime.CompilerServices;
 using BepInEx.Configuration;
 using UnityEngine;
 
-namespace DirectorRework.Config
+namespace DirectorRework
 {
     public static class PluginConfig
     {
         public static ConfigFile MainConfig;
 
-        public static ConfigEntry<bool> info;
         public static ConfigEntry<bool> enableCruelty;
         public static ConfigEntry<bool> enableDirectorMain;
         public static ConfigEntry<bool> enableDirectorTweaks;
-
+        public static ConfigEntry<bool> enableScalingTweaks;
 
         public static ConfigEntry<int> maxAffixes;
         public static ConfigEntry<int> maxScriptedAffixes;
@@ -30,16 +29,19 @@ namespace DirectorRework.Config
         public static ConfigEntry<bool> enableVieldsDiversity;
         public static ConfigEntry<bool> enableCreditRefund;
         public static ConfigEntry<int> creditRefundMultiplier;
+        public static ConfigEntry<int> hordeOfManyChance;
+        public static ConfigEntry<int> maxBossSpawns;
 
         public static ConfigEntry<bool> useRecommendedValues;
         public static ConfigEntry<float> minRerollSpawnInterval;
         public static ConfigEntry<float> maxRerollSpawnInterval;
         public static ConfigEntry<float> creditMultiplier;
-        public static ConfigEntry<float> eliteBias;
-        public static ConfigEntry<float> creditMultiplierForEachMountainShrine;
-        public static ConfigEntry<float> goldAndExperienceMultiplierForEachMountainShrine;
         public static ConfigEntry<int> maximumNumberToSpawnBeforeSkipping;
         public static ConfigEntry<int> maxConsecutiveCheapSkips;
+
+        public static ConfigEntry<bool> rampTyphoonCredits;
+        public static ConfigEntry<bool> enableLinearScaling;
+        public static ConfigEntry<float> linearScalingMultiplier;
 
         public static T GetValue<T>(this ConfigEntry<T> entry)
         {
@@ -56,7 +58,16 @@ namespace DirectorRework.Config
             if (DirectorReworkPlugin.RooInstalled)
                 InitRoO();
 
-            string section = "1. Modules";
+            BindModules(cfg, "1. Modules");
+            BindCruelty(cfg, "2. Affixes/Cruelty");
+            BindMain(cfg, "3. Director Main");
+            BindDirectorTweaks(cfg, "4. Director Tweaks");
+            BindScalingTweaks(cfg, "5. Scaling Tweaks");
+
+        }
+
+        private static void BindModules(ConfigFile cfg, string section)
+        {
             enableCruelty = cfg.BindOption(section,
                 "Enable Affix Stacking",
                 false,
@@ -70,10 +81,16 @@ namespace DirectorRework.Config
             enableDirectorTweaks = cfg.BindOption(section,
                 "Enable Combat Director Tweaks",
                 true,
-                "!!! Highly recommend to disable/zero out other mods that modify the combat director. Some options will stack exponentially !!!" +
-                "\r\n\r\nEnables a variety of configurable Combat Director options. Intended for fine tuning the pacing of spawns. Disable to prevent all modifications in 'Director Tweaks' from loading.");
+                "Enables a variety of configurable Combat Director options. Intended for fine tuning the pacing of spawns. Disable to prevent all modifications in 'Director Tweaks' from loading.");
 
-            section = "2. Affixes/Cruelty";
+            enableScalingTweaks = cfg.BindOption(section,
+                "Enable Scaling Tweaks",
+                false,
+                "Enables run scaling tweaks. Disable to prevent all modifications in 'Scaling Tweaks' from loading.");
+        }
+
+        private static void BindCruelty(ConfigFile cfg, string section)
+        {
             maxAffixes = cfg.BindOptionSlider(section,
                 "Max Additional Affixes",
                 3,
@@ -88,12 +105,12 @@ namespace DirectorRework.Config
 
             guaranteeSpecialBoss = cfg.BindOption(section,
                 "Guarantee Special Boss",
-                false,
+                true,
                 "Always apply additional affixes to special bosses in scripted events. Applies to void cradles, Mithrix, Alloy Worship Unit, etc");
 
             allowBosses = cfg.BindOption(section,
                 "Allow Boss Affix Stacking",
-                false,
+                true,
                 "Allows any bosses to recieve additional affixes. This setting is ignored during scripted combat events if Guarantee Special Boss is true.");
 
             onlyApplyToElites = cfg.BindOption(section,
@@ -108,18 +125,19 @@ namespace DirectorRework.Config
 
             triggerChance = cfg.BindOptionSlider(section,
                 "Trigger Chance",
-                20,
+                25,
                 "Chance to apply the first additional affix to an enemy. Set to 100 to make it always apply.",
                 0, 100);
 
             successChance = cfg.BindOptionSlider(section,
                 "Additional Affix Chance",
-                20,
+                10,
                 "Chance to add an additional affix after the first. Set to 100 to make it always attempt to add as many affixes as possible.",
                 0, 100);
+        }
 
-
-            section = "3. Director Main";
+        private static void BindMain(ConfigFile cfg, string section)
+        {
             enableBossDiversity = cfg.BindOption(section,
                 "Enable Boss Diversity",
                 true,
@@ -132,7 +150,7 @@ namespace DirectorRework.Config
 
             enableVieldsDiversity = cfg.BindOption(section,
                 "Enable Void Fields Spawn Diversity",
-                false,
+                true,
                 "Spawns multiple enemy types in void fields. Selection is limited to the enemy types that can spawn on the final wave.");
 
             enableCreditRefund = cfg.BindOption(section,
@@ -142,13 +160,25 @@ namespace DirectorRework.Config
 
             creditRefundMultiplier = cfg.BindOptionSlider(section,
                 "Percent Refund",
-                10,
+                15,
                 "Amount to refund the combat director when an enemy is killed, in percent. 100 is a bad idea, but its technically possible.",
                 0, 100);
 
+            hordeOfManyChance = cfg.BindOptionSlider(section,
+                "Horde of Many Chance",
+                10,
+                "Chance to replace the teleporter event with a Horde of Many. Vanilla is 0 (only used when it can't spawn normal bosses)",
+                0, 100);
 
-            section = "Director Tweaks";
+            maxBossSpawns = cfg.BindOptionSlider(section,
+                "Max Boss/Horde Spawns",
+                12,
+                "Maximum number of enemies that can be spawned as the teleporter boss. Affects normal bosses and horde of many. Vanilla is 6.",
+                0, 100);
+        }
 
+        private static void BindDirectorTweaks(ConfigFile cfg, string section)
+        {
             useRecommendedValues = cfg.BindOption(section,
                 "Use Recommended Values",
                 true,
@@ -158,39 +188,20 @@ namespace DirectorRework.Config
             creditMultiplier = cfg.BindOptionSlider(section,
                 "Credit Multiplier",
                 1f,
-                "How much to multiply money wave yield by. Vanilla is 1. " +
-                "\r\n\r\n!!! ITS RECOMMENDED TO SET ALL OTHER MODS TO 1 !!!",
-                0.1f, 5f);
-
-            eliteBias = cfg.BindOptionSlider(section,
-                "Elite Bias Cost Multiplier",
-                1f,
-                "Multiplies the elite selection cost. Higher numbers result in higher cost and therefore less elites. Vanilla is 1",
+                "How much to multiply money wave yield by. Vanilla is 1.",
                 0.1f, 5f);
 
             minRerollSpawnInterval = cfg.BindOptionSlider(section,
                 "Minimum Reroll Spawn Interval",
-                4.3333333f,
+                4f,
                 "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 2.33333",
                 0.1f, 20f);
 
             maxRerollSpawnInterval = cfg.BindOptionSlider(section,
                 "Maximum Reroll Spawn Interval",
-                6.3333335f,
+                6f,
                 "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 4.33333",
                 0.1f, 20f);
-
-            creditMultiplierForEachMountainShrine = cfg.BindOptionSlider(section,
-                "Credit Multiplier For Each Mountain Shrine",
-                1f,
-                "Credit multiplier for the teleporter director for each mountain shrine",
-                0.1f, 5f);
-
-            goldAndExperienceMultiplierForEachMountainShrine = cfg.BindOptionSlider(section,
-                "Gold And Experience Multiplier For Each Mountain Shrine",
-                1f,
-                "Gold and Exp multiplier for the teleporter director for each mountain shrine. Vanilla is 1",
-                0.1f, 5f);
 
             maximumNumberToSpawnBeforeSkipping = cfg.BindOptionSlider(section,
                 "Maximum Number To Spawn Before Skipping",
@@ -200,10 +211,28 @@ namespace DirectorRework.Config
 
             maxConsecutiveCheapSkips = cfg.BindOptionSlider(section,
                 "Max Consecutive Cheap Skips",
-                10,
+                6,
                 "If skipSpawnIfTooCheap is true, we'll behave as though it's not set after this many consecutive skips. Vanilla is -1",
                 -1, 20);
+        }
 
+        private static void BindScalingTweaks(ConfigFile cfg, string section)
+        {
+            rampTyphoonCredits = cfg.BindOption(section,
+                "Ramp Director Credit Scaling",
+                true,
+                "When other mods add credit scaling, it generally is unintentionally difficult on early stages. Enable this option to start stage 1 with 50% of the multipler and ramp up to the full credit multiplier on stage 3");
+
+            enableLinearScaling = cfg.BindOption(section,
+                "Enable Linear Stage Scaling",
+                true,
+                "Enables linear scaling for the stages cleared coefficient. Doesn't affect stage 1 or time scaling. Swaps back ");
+
+            linearScalingMultiplier = cfg.BindOptionSlider(section,
+                "Linear Scaling Per Stage",
+                0.2f,
+                "Will be applied to the formula (1 + {VALUE} * StagesCleared). A value of 0.2 will make stages 2-5 a bit harder. A value of 0.25 will make stages 2-7 significantly harder.",
+                0.15f, 0.5f);
         }
 
         #region Config Binding
@@ -221,9 +250,9 @@ namespace DirectorRework.Config
 
                 RiskOfOptions.ModSettingsManager.SetModIcon(icon);
             }
-            catch (Exception e) 
+            catch (Exception e)
             {
-                Log.Debug(e.ToString()); 
+                Log.Debug(e.ToString());
             }
         }
 
@@ -231,14 +260,12 @@ namespace DirectorRework.Config
         public static ConfigEntry<T> BindOption<T>(this ConfigFile myConfig, string section, string name, T defaultValue, string description = "", bool restartRequired = false)
         {
             if (defaultValue is int or float && !typeof(T).IsEnum)
-            {
 #if DEBUG
                 Log.Warning($"Config entry {name} in section {section} is a numeric {typeof(T).Name} type, " +
                     $"but has been registered without using {nameof(BindOptionSlider)}. " +
                     $"Lower and upper bounds will be set to the defaults [0, 20]. Was this intentional?");
 #endif
                 return myConfig.BindOptionSlider(section, name, defaultValue, description, 0, 20, restartRequired);
-            }
             if (string.IsNullOrEmpty(description))
                 description = name;
 
@@ -261,13 +288,11 @@ namespace DirectorRework.Config
         public static ConfigEntry<T> BindOptionSlider<T>(this ConfigFile myConfig, string section, string name, T defaultValue, string description = "", float min = 0, float max = 20, bool restartRequired = false)
         {
             if (!(defaultValue is int or float && !typeof(T).IsEnum))
-            {
 #if DEBUG
                 Log.Warning($"Config entry {name} in section {section} is a not a numeric {typeof(T).Name} type, " +
                     $"but has been registered as a slider option using {nameof(BindOptionSlider)}. Was this intentional?");
 #endif
                 return myConfig.BindOption(section, name, defaultValue, description, restartRequired);
-            }
 
             if (string.IsNullOrEmpty(description))
                 description = name;
@@ -314,25 +339,17 @@ namespace DirectorRework.Config
         public static void TryRegisterOption<T>(ConfigEntry<T> entry, bool restartRequired)
         {
             if (entry is ConfigEntry<string> stringEntry)
-            {
                 RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.StringInputFieldOption(stringEntry, new RiskOfOptions.OptionConfigs.InputFieldConfig()
                 {
                     submitOn = RiskOfOptions.OptionConfigs.InputFieldConfig.SubmitEnum.OnExitOrSubmit,
                     restartRequired = restartRequired
                 }));
-            }
             else if (entry is ConfigEntry<bool> boolEntry)
-            {
                 RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.CheckBoxOption(boolEntry, restartRequired));
-            }
             else if (entry is ConfigEntry<KeyboardShortcut> shortCutEntry)
-            {
                 RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.KeyBindOption(shortCutEntry, restartRequired));
-            }
             else if (typeof(T).IsEnum)
-            {
                 RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.ChoiceOption(entry, restartRequired));
-            }
             else
             {
 #if DEBUG
@@ -346,7 +363,6 @@ namespace DirectorRework.Config
         public static void TryRegisterOptionSlider<T>(ConfigEntry<T> entry, float min, float max, bool restartRequired)
         {
             if (entry is ConfigEntry<int> intEntry)
-            {
                 RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.IntSliderOption(intEntry, new RiskOfOptions.OptionConfigs.IntSliderConfig()
                 {
                     min = (int)min,
@@ -354,9 +370,7 @@ namespace DirectorRework.Config
                     formatString = "{0:0.00}",
                     restartRequired = restartRequired
                 }));
-            }
             else if (entry is ConfigEntry<float> floatEntry)
-            {
                 RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.SliderOption(floatEntry, new RiskOfOptions.OptionConfigs.SliderConfig()
                 {
                     min = min,
@@ -364,7 +378,6 @@ namespace DirectorRework.Config
                     FormatString = "{0:0.00}",
                     restartRequired = restartRequired
                 }));
-            }
             else
             {
 #if DEBUG
@@ -378,7 +391,6 @@ namespace DirectorRework.Config
         public static void TryRegisterOptionSteppedSlider<T>(ConfigEntry<T> entry, float increment, float min, float max, bool restartRequired)
         {
             if (entry is ConfigEntry<float> floatEntry)
-            {
                 RiskOfOptions.ModSettingsManager.AddOption(new RiskOfOptions.Options.StepSliderOption(floatEntry, new RiskOfOptions.OptionConfigs.StepSliderConfig()
                 {
                     increment = increment,
@@ -387,7 +399,6 @@ namespace DirectorRework.Config
                     FormatString = "{0:0.00}",
                     restartRequired = restartRequired
                 }));
-            }
             else
             {
 #if DEBUG
