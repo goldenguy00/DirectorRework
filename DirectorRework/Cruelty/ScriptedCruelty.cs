@@ -15,9 +15,14 @@ namespace DirectorRework.Cruelty
             if (NetworkServer.active && self.combatSquad)
             {
                 var rng = self.rng;
-                self.combatSquad.onMemberAddedServer += (master) =>
+                self.combatSquad.onMemberAddedServer += OnMemberAddedServer;
+
+                void OnMemberAddedServer(CharacterMaster master)
                 {
-                    if (PluginConfig.enableCruelty.Value && master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
+                    if (!PluginConfig.enableCruelty.Value)
+                        return;
+
+                    if (master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
                     {
                         var body = master.GetBody();
                         if (body)
@@ -32,14 +37,14 @@ namespace DirectorRework.Cruelty
                                     return;
                             }
 
-                            ScriptedCruelty.OnMemberAddedServer(body, master.inventory, rng);
+                            ScriptedCruelty.AddEliteBuffs(body, master.inventory, rng);
                         }
                     }
-                };
+                }
             }
         }
 
-        public static void OnMemberAddedServer(CharacterBody body, Inventory inventory, Xoroshiro128Plus rng)
+        private static void AddEliteBuffs(CharacterBody body, Inventory inventory, Xoroshiro128Plus rng)
         {
             //Check amount of elite buffs the target has
             List<BuffIndex> currentEliteBuffs = HG.ListPool<BuffIndex>.RentCollection();

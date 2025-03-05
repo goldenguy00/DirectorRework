@@ -83,7 +83,7 @@ namespace DirectorRework.Modules
             if (additionalPlayerCount > 0)
                 additionalPlayerCount--;
 
-            self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maxBossSpawns.Value + (PluginConfig.maxBossSpawns.Value * additionalPlayerCount / 4);
+            self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maxBossSpawns.Value + (additionalPlayerCount * (PluginConfig.maxBossSpawns.Value / 4));
             self.skipSpawnIfTooCheap = false;
 
             orig(self);
@@ -96,24 +96,22 @@ namespace DirectorRework.Modules
                 Index = il.Instrs.Count - 1
             };
 
-            var selectionLoc = 0;
             if (c.TryGotoPrev(MoveType.Before,
-                    x => x.MatchLdarg(0),
-                    x => x.MatchLdloc(out selectionLoc),
                     x => x.MatchCallOrCallvirt<CombatDirector>(nameof(CombatDirector.PrepareNewMonsterWave))
                 ))
             {
                 c.Emit(OpCodes.Ldarg_0);
-                c.Emit(OpCodes.Ldloc, selectionLoc);
-                c.EmitDelegate<Func<CombatDirector, DirectorCard, DirectorCard>>((self, selection) =>
-                {
-                    if (self.rng.RangeInt(0, 100) < PluginConfig.hordeOfManyChance.Value)
-                        return GetNextSpawnCard(self, isBoss: true, spawnChampion: false) ?? selection;
-                    return selection;
-                });
-                c.Emit(OpCodes.Stloc, selectionLoc);
+                c.EmitDelegate(RollForHorde);
             }
             else Log.Error("IL Hook failed for CombatDirector.SetNextSpawnAsBoss");
+        }
+
+        private static DirectorCard RollForHorde(DirectorCard selection, CombatDirector self)
+        {
+            if (self.rng.RangeInt(0, 100) < PluginConfig.hordeOfManyChance.Value)
+                return GetNextSpawnCard(self, isBoss: true, spawnChampion: false) ?? selection;
+
+            return selection;
         }
 
         private static void CombatDirector_AttemptSpawnOnTarget(ILContext il)
@@ -185,7 +183,7 @@ namespace DirectorRework.Modules
                 {
                     if (isBoss)
                     {
-                        if ((choice.value.spawnCard as CharacterSpawnCard)?.forbiddenAsBoss == true)
+                        if (choice.value.spawnCard is CharacterSpawnCard { forbiddenAsBoss: true })
                             continue;
 
                         if (spawnChampion != GetIsChampion(choice.value))
@@ -267,7 +265,7 @@ namespace DirectorRework.Modules
                 if (!memory.cachedBody || memory.lastObservedHealth <= 0f)
                     continue;
 
-                var missingHp = memory.maxObservedMaxHealth + 4 * Mathf.Max(0f, memory.maxObservedMaxHealth - memory.lastObservedHealth);
+                var missingHp = memory.maxObservedMaxHealth + (4 * Mathf.Max(0f, memory.maxObservedMaxHealth - memory.lastObservedHealth));
                 if (missingHp > maxMissingHp)
                 {
                     maxMissingHp = missingHp;
@@ -304,18 +302,18 @@ namespace DirectorRework.Modules
                 var body = master.GetBody();
                 if (body && !body.isBoss && !body.isChampion && body.cost > 0f && body.teamComponent.teamIndex == TeamIndex.Monster)
                     master.onBodyDestroyed += OnBodyDestroyed;
-            }
 
-            void OnBodyDestroyed(CharacterBody body)
-            {
-                if (PluginConfig.creditRefundMultiplier.Value <= 0)
-                    return;
-
-                if (self && self.isActiveAndEnabled && self.monsterCredit > 0)
+                void OnBodyDestroyed(CharacterBody body)
                 {
-                    var refund = body?.cost * PluginConfig.creditRefundMultiplier.Value * 0.01f;
-                    if (refund.HasValue)
-                        self.monsterCredit += refund.Value;
+                    if (PluginConfig.creditRefundMultiplier.Value <= 0)
+                        return;
+
+                    if (self && self.isActiveAndEnabled && self.monsterCredit > 0)
+                    {
+                        var refund = body?.cost * PluginConfig.creditRefundMultiplier.Value * 0.01f;
+                        if (refund.HasValue)
+                            self.monsterCredit += refund.Value;
+                    }
                 }
             }
         }

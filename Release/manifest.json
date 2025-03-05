@@ -1,0 +1,13 @@
+{
+	"name": "DirectorReworkPlus",
+	"version_number": "1.2.0",
+	"author": "score",
+	"website_url": "https://github.com/goldenguy00/DirectorRework",
+	"description": "Combat Director Tweaks and Elite Stacking",
+    "dependencies": [
+        "bbepis-BepInExPack-5.4.2117",
+        "RiskofThunder-HookGenPatcher-1.2.5",
+        "Rune580-Risk_Of_Options-2.8.2",
+        "Moffein-EliteReworks-1.14.0"
+    ]
+}

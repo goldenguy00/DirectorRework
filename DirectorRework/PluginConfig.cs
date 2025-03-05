@@ -63,7 +63,6 @@ namespace DirectorRework
             BindMain(cfg, "3. Director Main");
             BindDirectorTweaks(cfg, "4. Director Tweaks");
             BindScalingTweaks(cfg, "5. Scaling Tweaks");
-
         }
 
         private static void BindModules(ConfigFile cfg, string section)
@@ -85,7 +84,7 @@ namespace DirectorRework
 
             enableScalingTweaks = cfg.BindOption(section,
                 "Enable Scaling Tweaks",
-                false,
+                true,
                 "Enables run scaling tweaks. Disable to prevent all modifications in 'Scaling Tweaks' from loading.");
         }
 
@@ -166,14 +165,14 @@ namespace DirectorRework
 
             hordeOfManyChance = cfg.BindOptionSlider(section,
                 "Horde of Many Chance",
-                10,
+                5,
                 "Chance to replace the teleporter event with a Horde of Many. Vanilla is 0 (only used when it can't spawn normal bosses)",
                 0, 100);
 
             maxBossSpawns = cfg.BindOptionSlider(section,
                 "Max Boss/Horde Spawns",
                 12,
-                "Maximum number of enemies that can be spawned as the teleporter boss. Affects normal bosses and horde of many. Vanilla is 6.",
+                "Maximum number of enemies that can be spawned as the teleporter boss, scaled with playercount. Affects normal bosses and horde of many. Vanilla is 6.",
                 0, 100);
         }
 
@@ -225,8 +224,8 @@ namespace DirectorRework
 
             enableLinearScaling = cfg.BindOption(section,
                 "Enable Linear Stage Scaling",
-                true,
-                "Enables linear scaling for the stages cleared coefficient. Doesn't affect stage 1 or time scaling. Swaps back ");
+                false,
+                "Enables linear scaling for the stages cleared coefficient. Doesn't affect stage 1 or time scaling. Swaps back when exponential scaling is greater.");
 
             linearScalingMultiplier = cfg.BindOptionSlider(section,
                 "Linear Scaling Per Stage",

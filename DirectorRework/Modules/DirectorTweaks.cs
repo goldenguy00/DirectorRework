@@ -125,25 +125,33 @@ namespace DirectorRework.Modules
         private void MinRerollSpawnInterval_SettingChanged(object sender, EventArgs e)
         {
             foreach (var director in CombatDirector.instancesList)
+            {
                 director.minRerollSpawnInterval = PluginConfig.minRerollSpawnInterval.GetValue();
+            }
         }
 
         private void MaxRerollSpawnInterval_SettingChanged(object sender, EventArgs e)
         {
             foreach (var director in CombatDirector.instancesList)
+            {
                 director.maxRerollSpawnInterval = PluginConfig.maxRerollSpawnInterval.GetValue();
+            }
         }
 
         private void MaximumNumberToSpawnBeforeSkipping_SettingChanged(object sender, EventArgs e)
         {
             foreach (var director in CombatDirector.instancesList)
+            {
                 director.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.GetValue();
+            }
         }
 
         private void MaxConsecutiveCheapSkips_SettingChanged(object sender, EventArgs e)
         {
             foreach (var director in CombatDirector.instancesList)
+            {
                 director.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.GetValue();
+            }
         }
         #endregion
     }

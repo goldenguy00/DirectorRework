@@ -2,6 +2,7 @@
 using System.Linq;
 using DirectorRework.Modules;
 using RoR2;
+using UnityEngine;
 using UnityEngine.Networking;
 
 namespace DirectorRework.Cruelty
@@ -20,7 +21,9 @@ namespace DirectorRework.Cruelty
 
             if (NetworkServer.active)
             {
-                self.onSpawnedServer.AddListener((masterObject) =>
+                self.onSpawnedServer.AddListener(OnSpawnedServer);
+
+                void OnSpawnedServer(GameObject masterObject)
                 {
                     if (PluginConfig.enableCruelty.Value && Util.CheckRoll(PluginConfig.triggerChance.Value))
                     {
@@ -38,15 +41,15 @@ namespace DirectorRework.Cruelty
                                 if (PluginConfig.onlyApplyToElites.Value && !isElite)
                                     return;
 
-                                CombatCruelty.OnSpawnedServer(self, body, master.inventory);
+                                CombatCruelty.AddEliteBuffs(self, body, master.inventory);
                             }
                         }
                     }
-                });
+                };
             }
         }
 
-        private static void OnSpawnedServer(CombatDirector director, CharacterBody body, Inventory inventory)
+        private static void AddEliteBuffs(CombatDirector director, CharacterBody body, Inventory inventory)
         {
             //Check amount of elite buffs the target has
             List<BuffIndex> currentEliteBuffs = HG.ListPool<BuffIndex>.RentCollection();
