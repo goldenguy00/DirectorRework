@@ -1,3 +1,7 @@
+## 1.2.1
+
+- Content disabler should work better now
+
 ## 1.2.0
 
 - Added linear scaling

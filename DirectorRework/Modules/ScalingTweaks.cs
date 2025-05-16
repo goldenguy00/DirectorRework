@@ -58,7 +58,6 @@ namespace DirectorRework.Modules
             }
         }
 
-        // this is the dumbest shit ive ever written. so much arbitrary shit but it had to happen
         private static void CombatDirector_OnEnable(On.RoR2.CombatDirector.orig_OnEnable orig, CombatDirector self)
         {
             orig(self);
@@ -74,6 +73,7 @@ namespace DirectorRework.Modules
             }
         }
 
+        // this is the dumbest shit ive ever written. so much arbitrary shit but it had to happen
         private static float GetNewCreditMultiplier(float creditMultiplier)
         {
             if (creditMultiplier is < 1.3f or > 2f)

@@ -2,6 +2,7 @@
 using System.Linq;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
+using MonoMod.Utils;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;

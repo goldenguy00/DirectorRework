@@ -16,13 +16,11 @@ namespace DirectorRework.Modules
     /// </summary>
     public class CrueltyManager
     {
-        private HashSet<EquipmentIndex> BlacklistedElites { get; set; } = [];
+        private static readonly HashSet<EquipmentIndex> _blacklistedElites = [];
+        private bool _hooksEnabled;
 
         public static CrueltyManager Instance { get; private set; }
-        public bool HooksEnabled { get; set; }
-
         public static void Init() => Instance ??= new CrueltyManager();
-
         private CrueltyManager()
         {
             RoR2Application.onLoad += OnLoad;
@@ -41,7 +39,7 @@ namespace DirectorRework.Modules
 
         public void SetHooks()
         {
-            if (!HooksEnabled)
+            if (!_hooksEnabled)
             {
                 GlobalEventManager.onCharacterDeathGlobal += this.GlobalEventManager_onCharacterDeathGlobal;
 
@@ -50,13 +48,13 @@ namespace DirectorRework.Modules
 
                 IL.EntityStates.VoidInfestor.Infest.FixedUpdate += Infest_FixedUpdate;
                 IL.RoR2.GlobalEventManager.OnCharacterDeath += GlobalEventManager_OnCharacterDeath;
-                HooksEnabled = true;
+                _hooksEnabled = true;
             }
         }
 
         public void UnsetHooks()
         {
-            if (HooksEnabled)
+            if (_hooksEnabled)
             {
                 GlobalEventManager.onCharacterDeathGlobal -= this.GlobalEventManager_onCharacterDeathGlobal;
 
@@ -65,7 +63,7 @@ namespace DirectorRework.Modules
 
                 IL.EntityStates.VoidInfestor.Infest.FixedUpdate -= Infest_FixedUpdate;
                 IL.RoR2.GlobalEventManager.OnCharacterDeath -= GlobalEventManager_OnCharacterDeath;
-                HooksEnabled = false;
+                _hooksEnabled = false;
             }
         }
 
@@ -76,7 +74,7 @@ namespace DirectorRework.Modules
             {
                 var ed = EquipmentCatalog.GetEquipmentDef(blightIndex);
                 if (ed && ed.passiveBuffDef && ed.passiveBuffDef.eliteDef)
-                    BlacklistedElites.Add(blightIndex);
+                    _blacklistedElites.Add(blightIndex);
             }
 
             var perfectedIndex = EquipmentCatalog.FindEquipmentIndex("EliteLunarEquipment");
@@ -84,7 +82,7 @@ namespace DirectorRework.Modules
             {
                 var ed = EquipmentCatalog.GetEquipmentDef(perfectedIndex);
                 if (ed && ed.passiveBuffDef && ed.passiveBuffDef.eliteDef)
-                    BlacklistedElites.Add(perfectedIndex);
+                    _blacklistedElites.Add(perfectedIndex);
             }
         }
 
@@ -223,12 +221,10 @@ namespace DirectorRework.Modules
             }
         }
 
-        internal static bool IsValid(EliteDef ed, List<BuffIndex> currentBuffs)
+        internal static bool IsValid(EliteDef ed, HashSet<BuffIndex> currentBuffs)
         {
-            return ed && ed.IsAvailable() && ed.eliteEquipmentDef &&
-                   ed.eliteEquipmentDef.passiveBuffDef &&
-                   ed.eliteEquipmentDef.passiveBuffDef.isElite &&
-                   !Instance.BlacklistedElites.Contains(ed.eliteEquipmentDef.equipmentIndex) &&
+            return ed && ed.IsAvailable() && ed.eliteEquipmentDef?.passiveBuffDef?.isElite == true &&
+                   !_blacklistedElites.Contains(ed.eliteEquipmentDef.equipmentIndex) &&
                    !currentBuffs.Contains(ed.eliteEquipmentDef.passiveBuffDef.buffIndex);
         }
     }

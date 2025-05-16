@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DirectorRework.Modules;
 using RoR2;
@@ -43,22 +44,25 @@ namespace DirectorRework.Cruelty
                 }
             }
         }
-
         private static void AddEliteBuffs(CharacterBody body, Inventory inventory, Xoroshiro128Plus rng)
         {
             //Check amount of elite buffs the target has
-            List<BuffIndex> currentEliteBuffs = HG.ListPool<BuffIndex>.RentCollection();
-            foreach (var b in BuffCatalog.eliteBuffIndices)
+            var currentEliteBuffs = HG.CollectionPool<BuffIndex, HashSet<BuffIndex>>.RentCollection();
+            if (body.eliteBuffCount > 0)
             {
-                if (body.HasBuff(b) && !currentEliteBuffs.Contains(b))
-                    currentEliteBuffs.Add(b);
+                for (int i = 0; i < body.activeBuffsListCount; i++)
+                {
+                    if (BuffCatalog.GetBuffDef(body.activeBuffsList[i])?.isElite is true)
+                        currentEliteBuffs.Add(body.activeBuffsList[i]);
+                }
             }
 
             uint xp = 0, gold = 0;
-            if (body.TryGetComponent<DeathRewards>(out var deathReward))
+            var deathRewards = body.GetComponent<DeathRewards>();
+            if (deathRewards)
             {
-                xp = deathReward.expReward;
-                gold = deathReward.goldReward;
+                xp = deathRewards.expReward;
+                gold = deathRewards.goldReward;
             }
 
             while (currentEliteBuffs.Count < PluginConfig.maxScriptedAffixes.Value && GetScriptedRandom(rng, currentEliteBuffs, out var result))
@@ -69,38 +73,44 @@ namespace DirectorRework.Cruelty
 
                 int affixes = currentEliteBuffs.Count;
                 CrueltyManager.GiveItemBoosts(inventory, result, affixes);
-                CrueltyManager.GiveDeathReward(deathReward, xp, gold, affixes);
+                CrueltyManager.GiveDeathReward(deathRewards, xp, gold, affixes);
 
                 if (!Util.CheckRoll(PluginConfig.successChance.Value))
                     break;
             }
 
-            HG.ListPool<BuffIndex>.ReturnCollection(currentEliteBuffs);
+            HG.CollectionPool<BuffIndex, HashSet<BuffIndex>>.ReturnCollection(currentEliteBuffs);
         }
 
-        private static bool GetScriptedRandom(Xoroshiro128Plus rng, List<BuffIndex> currentBuffs, out EliteDef result)
+        private static bool GetScriptedRandom(Xoroshiro128Plus rng, HashSet<BuffIndex> currentBuffs, out EliteDef result)
         {
             result = null;
 
             var tiers = CombatDirector.eliteTiers;
             if (tiers is null || tiers.Length == 0)
                 return false;
-
-            var availableDefs =
+            
+            var availableDefs = 
                 from etd in tiers
                 where etd?.canSelectWithoutAvailableEliteDef == false
                 from ed in etd.eliteTypes
                 where CrueltyManager.IsValid(ed, currentBuffs)
-                select ed;
+                select ed.eliteIndex;
 
-            if (availableDefs.Any())
-            {
-                var rngIndex = rng.RangeInt(0, availableDefs.Count());
-                result = availableDefs.ElementAt(rngIndex);
-                return true;
-            }
+            if (!availableDefs.Any())
+                return false;
 
-            return false;
+            // Move down the collection one element at a time.
+            // When index is -1 we are at the random element location
+            var rngIndex = rng.RangeInt(0, availableDefs.Count());
+            using var enumerator = availableDefs.GetEnumerator();
+
+            while (rngIndex >= 0 && enumerator.MoveNext())
+                rngIndex--;
+
+            // Return the current element
+            result = EliteCatalog.GetEliteDef(enumerator.Current);
+            return true;
         }
     }
 }
