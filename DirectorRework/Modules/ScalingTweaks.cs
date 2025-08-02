@@ -7,14 +7,11 @@ using UnityEngine.Networking;
 
 namespace DirectorRework.Modules
 {
-    public class ScalingTweaks
+    public static class ScalingTweaks
     {
-        private bool linearScaling, rampTyphoonCredits;
+        private static bool linearScaling, rampTyphoonCredits;
 
-        public static ScalingTweaks Instance { get; private set; }
-        public static void Init() => Instance ??= new ScalingTweaks();
-
-        private ScalingTweaks()
+        public static void Init()
         {
             OnSettingChanged(null, null);
 
@@ -24,7 +21,7 @@ namespace DirectorRework.Modules
         }
 
         // fuck i hate this, worth a try tho
-        public void OnSettingChanged(object sender, EventArgs a)
+        public static void OnSettingChanged(object sender, EventArgs a)
         {
             var enabled = PluginConfig.enableScalingTweaks.Value;
 
@@ -32,7 +29,7 @@ namespace DirectorRework.Modules
             ApplyTyphoonRamp(enabled && PluginConfig.rampTyphoonCredits.Value);
         }
 
-        private void ApplyLinearScaling(bool enabled)
+        private static void ApplyLinearScaling(bool enabled)
         {
             if (linearScaling != enabled)
             {
@@ -45,7 +42,7 @@ namespace DirectorRework.Modules
             }
         }
 
-        private void ApplyTyphoonRamp(bool enabled)
+        private static void ApplyTyphoonRamp(bool enabled)
         {
             if (rampTyphoonCredits != enabled)
             {
@@ -64,7 +61,7 @@ namespace DirectorRework.Modules
 
             if (!NetworkServer.active || !Run.instance)
                 return;
-
+            self.spawnDistanceMultiplier *= 1.25f;
             self.creditMultiplier = GetNewCreditMultiplier(self.creditMultiplier);
 
             for (int i = 0; i < self.moneyWaves.Length; i++)

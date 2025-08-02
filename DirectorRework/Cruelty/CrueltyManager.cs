@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using DirectorRework.Cruelty;
 using EntityStates;
 using HarmonyLib;
 using Mono.Cecil.Cil;
@@ -9,27 +8,22 @@ using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace DirectorRework.Modules
+namespace DirectorRework.Cruelty
 {
-    /// <summary>
-    /// Fixed it.
-    /// </summary>
-    public class CrueltyManager
+    public static class CrueltyManager
     {
         private static readonly HashSet<EquipmentIndex> _blacklistedElites = [];
-        private bool _hooksEnabled;
+        private static bool _hooksEnabled;
 
-        public static CrueltyManager Instance { get; private set; }
-        public static void Init() => Instance ??= new CrueltyManager();
-        private CrueltyManager()
+        public static void Init()
         {
-            RoR2Application.onLoad += OnLoad;
+            EquipmentCatalog.availability.CallWhenAvailable(OnLoad);
 
             PluginConfig.enableCruelty.SettingChanged += OnSettingChanged;
             OnSettingChanged(null, null);
         }
 
-        public void OnSettingChanged(object sender, EventArgs args)
+        public static void OnSettingChanged(object sender, EventArgs args)
         {
             if (PluginConfig.enableCruelty.Value)
                 SetHooks();
@@ -37,78 +31,78 @@ namespace DirectorRework.Modules
                 UnsetHooks();
         }
 
-        public void SetHooks()
-        {
-            if (!_hooksEnabled)
-            {
-                GlobalEventManager.onCharacterDeathGlobal += this.GlobalEventManager_onCharacterDeathGlobal;
-
-                On.RoR2.CombatDirector.Awake += CombatCruelty.CombatDirector_Awake;
-                On.RoR2.ScriptedCombatEncounter.Awake += ScriptedCruelty.ScriptedCombatEncounter_Awake;
-
-                IL.EntityStates.VoidInfestor.Infest.FixedUpdate += Infest_FixedUpdate;
-                IL.RoR2.GlobalEventManager.OnCharacterDeath += GlobalEventManager_OnCharacterDeath;
-                _hooksEnabled = true;
-            }
-        }
-
-        public void UnsetHooks()
+        public static void SetHooks()
         {
             if (_hooksEnabled)
-            {
-                GlobalEventManager.onCharacterDeathGlobal -= this.GlobalEventManager_onCharacterDeathGlobal;
+                return;
 
-                On.RoR2.CombatDirector.Awake -= CombatCruelty.CombatDirector_Awake;
-                On.RoR2.ScriptedCombatEncounter.Awake -= ScriptedCruelty.ScriptedCombatEncounter_Awake;
+            GlobalEventManager.onCharacterDeathGlobal += GlobalEventManager_onCharacterDeathGlobal;
 
-                IL.EntityStates.VoidInfestor.Infest.FixedUpdate -= Infest_FixedUpdate;
-                IL.RoR2.GlobalEventManager.OnCharacterDeath -= GlobalEventManager_OnCharacterDeath;
-                _hooksEnabled = false;
-            }
+            On.RoR2.CombatDirector.Awake += CombatCruelty.CombatDirector_Awake;
+            On.RoR2.ScriptedCombatEncounter.Awake += ScriptedCruelty.ScriptedCombatEncounter_Awake;
+
+            IL.EntityStates.VoidInfestor.Infest.FixedUpdate += Infest_FixedUpdate;
+            IL.RoR2.GlobalEventManager.OnCharacterDeath += GlobalEventManager_OnCharacterDeath;
+
+            _hooksEnabled = true;
         }
 
-        private void OnLoad()
+        public static void UnsetHooks()
         {
-            var blightIndex = EquipmentCatalog.FindEquipmentIndex("AffixBlightedMoffein");
-            if (blightIndex != EquipmentIndex.None)
-            {
-                var ed = EquipmentCatalog.GetEquipmentDef(blightIndex);
-                if (ed && ed.passiveBuffDef && ed.passiveBuffDef.eliteDef)
-                    _blacklistedElites.Add(blightIndex);
-            }
+            GlobalEventManager.onCharacterDeathGlobal -= GlobalEventManager_onCharacterDeathGlobal;
 
-            var perfectedIndex = EquipmentCatalog.FindEquipmentIndex("EliteLunarEquipment");
-            if (perfectedIndex != EquipmentIndex.None)
-            {
-                var ed = EquipmentCatalog.GetEquipmentDef(perfectedIndex);
-                if (ed && ed.passiveBuffDef && ed.passiveBuffDef.eliteDef)
-                    _blacklistedElites.Add(perfectedIndex);
-            }
+            On.RoR2.CombatDirector.Awake -= CombatCruelty.CombatDirector_Awake;
+            On.RoR2.ScriptedCombatEncounter.Awake -= ScriptedCruelty.ScriptedCombatEncounter_Awake;
+
+            IL.EntityStates.VoidInfestor.Infest.FixedUpdate -= Infest_FixedUpdate;
+            IL.RoR2.GlobalEventManager.OnCharacterDeath -= GlobalEventManager_OnCharacterDeath;
+
+            _hooksEnabled = false;
         }
 
-        private void GlobalEventManager_onCharacterDeathGlobal(DamageReport report)
+        private static void OnLoad()
         {
-            if (NetworkServer.active && report.victimIsElite && report.victimBody)
+            BlacklistEquipment("AffixBlightedMoffein");
+            BlacklistEquipment("EliteLunarEquipment");
+
+            void BlacklistEquipment(string name)
             {
-                var inventory = report.victimMaster ? report.victimMaster.inventory : null;
-                if (inventory && inventory.GetEquipmentSlotCount() > 1)
+                var equipmentIndex = EquipmentCatalog.FindEquipmentIndex(name);
+                if (equipmentIndex != EquipmentIndex.None)
                 {
-                    var baseLuck = report.attackerMaster ? report.attackerMaster.luck : 0;
-                    for (uint i = 1; i < inventory.GetEquipmentSlotCount(); i++)
-                    {
-                        var equipmentDef = inventory.GetEquipment(i).equipmentDef;
-                        if (equipmentDef && Util.CheckRoll(equipmentDef.dropOnDeathChance * 100f, baseLuck + i, report.attackerMaster))
-                        {
-                            var ray = report.victimBody.inputBank
-                                ? report.victimBody.inputBank.GetAimRay()
-                                : new Ray(report.victimBody.corePosition, report.victimBody.transform.rotation * Vector3.forward);
+                    var ed = EquipmentCatalog.GetEquipmentDef(equipmentIndex);
+                    if (ed?.passiveBuffDef?.eliteDef)
+                        _blacklistedElites.Add(equipmentIndex);
+                }
+            }
+        }
 
-                            ray.origin += Vector3.up * 1.5f;
-                            ray.direction = ray.direction * 2f + Vector3.up * 20f;
+        private static void GlobalEventManager_onCharacterDeathGlobal(DamageReport report)
+        {
+            if (!NetworkServer.active)
+                return;
 
-                            PickupDropletController.CreatePickupDroplet(PickupCatalog.FindPickupIndex(equipmentDef.equipmentIndex), ray.origin, ray.direction);
-                        }
-                    }
+            if (!report.victimIsElite || !report.victimBody)
+                return;
+
+            var inventory = report.victimMaster ? report.victimMaster.inventory : null;
+            if (!inventory)
+                return;
+
+            var baseLuck = report.attackerMaster ? report.attackerMaster.luck : 0;
+            for (uint i = 1; i < inventory.GetEquipmentSlotCount(); i++)
+            {
+                var equipmentDef = inventory.GetEquipment(i).equipmentDef;
+                if (equipmentDef && Util.CheckRoll(equipmentDef.dropOnDeathChance * 100f, baseLuck + i, report.attackerMaster))
+                {
+                    var ray = report.victimBody.inputBank
+                        ? report.victimBody.inputBank.GetAimRay()
+                        : new Ray(report.victimBody.corePosition, report.victimBody.transform.rotation * Vector3.forward);
+
+                    ray.origin += Vector3.up * 1.5f;
+                    ray.direction = (ray.direction * 2f) + (Vector3.up * 20f);
+
+                    PickupDropletController.CreatePickupDroplet(PickupCatalog.FindPickupIndex(equipmentDef.equipmentIndex), ray.origin, ray.direction);
                 }
             }
         }
@@ -144,8 +138,7 @@ namespace DirectorRework.Modules
             var loc = 0;
             if (c.TryGotoNext(
                     x => x.MatchLdloc(out loc),
-                    x => x.MatchCallOrCallvirt(AccessTools.PropertyGetter(typeof(CharacterBody), nameof(CharacterBody.inventory))
-                )) &&
+                    x => x.MatchCallOrCallvirt(AccessTools.PropertyGetter(typeof(CharacterBody), nameof(CharacterBody.inventory)))) &&
                 c.TryGotoNext(MoveType.After,
                     x => x.MatchCallOrCallvirt<Inventory>(nameof(Inventory.SetEquipmentIndex))
                 ))
@@ -163,29 +156,36 @@ namespace DirectorRework.Modules
         internal static void TransferAffixes(CharacterBody sourceBody, CharacterBody targetBody) => TransferAffixes(sourceBody ? sourceBody.inventory : null, targetBody);
         internal static void TransferAffixes(Inventory source, CharacterBody targetBody)
         {
-            var target = targetBody ? targetBody.inventory : null;
-            if (source && target)
-            {
-                // first empty slot
-                uint targetIndex = 0;
-                for (uint i = 0; i <= target.GetEquipmentSlotCount(); i++)
-                {
-                    if (target.GetEquipment(i).equipmentIndex == EquipmentIndex.None)
-                    {
-                        targetIndex = i;
-                        break;
-                    }
-                }
+            if (!source)
+                return;
 
-                for (uint i = 0; i < source.GetEquipmentSlotCount(); i++)
+            var target = targetBody ? targetBody.inventory : null;
+            if (!target)
+                return;
+
+            // first empty slot
+            uint targetIndex = 0;
+            for (uint i = 0; i <= target.GetEquipmentSlotCount(); i++)
+            {
+                var indexForSlot = target.GetEquipment(i).equipmentIndex;
+                if (indexForSlot == EquipmentIndex.None)
                 {
-                    var def = source.GetEquipment(i).equipmentDef;
-                    if (def && def.equipmentIndex != EquipmentIndex.None && def.passiveBuffDef && def.passiveBuffDef.isElite)
-                    {
-                        target.SetEquipmentIndexForSlot(def.equipmentIndex, targetIndex);
-                        targetBody.AddBuff(def.passiveBuffDef);
-                        targetIndex++;
-                    }
+                    targetIndex = i;
+                    break;
+                }
+            }
+
+            for (uint i = 0; i < source.GetEquipmentSlotCount(); i++)
+            {
+                var def = source.GetEquipment(i).equipmentDef;
+                if (def && def.equipmentIndex != EquipmentIndex.None && def.passiveBuffDef && def.passiveBuffDef.isElite)
+                {
+                    if (targetBody.HasBuff(def.passiveBuffDef.buffIndex))
+                        continue;
+
+                    target.SetEquipmentIndexForSlot(def.equipmentIndex, targetIndex);
+                    targetBody.AddBuff(def.passiveBuffDef);
+                    targetIndex++;
                 }
             }
         }
@@ -195,7 +195,8 @@ namespace DirectorRework.Modules
             //Fill in first empty equipment slot
             for (uint i = 0; i <= inventory.GetEquipmentSlotCount(); i++)
             {
-                if (inventory.GetEquipment(i).equipmentIndex == EquipmentIndex.None)
+                var indexForSlot = inventory.GetEquipment(i).equipmentIndex;
+                if (indexForSlot == EquipmentIndex.None || indexForSlot == equipment.equipmentIndex)
                 {
                     inventory.SetEquipmentIndexForSlot(equipment.equipmentIndex, i);
                     break;

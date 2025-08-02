@@ -1,14 +1,14 @@
 ﻿using System;
 using RoR2;
+using UnityEngine;
+using UnityEngine.Networking;
 
 namespace DirectorRework.Modules
 {
-    public class DirectorTweaks
+    public class DirectorTweaks : MonoBehaviour
     {
-        private float _prevCreditMult = 1f;
-
-        private bool _hooksEnabled;
-        public bool Enabled
+        private static bool _hooksEnabled;
+        public static bool Enabled
         {
             get => _hooksEnabled;
             set
@@ -20,12 +20,12 @@ namespace DirectorRework.Modules
                 }
             }
         }
-        public static DirectorTweaks Instance { get; private set; }
-        public static void Init() => Instance ??= new DirectorTweaks();
 
-        private DirectorTweaks()
+        public static void Init()
         {
             Enabled = PluginConfig.enableDirectorTweaks.Value;
+
+            On.RoR2.CombatDirector.Awake += CombatDirector_Awake;
 
             PluginConfig.useRecommendedValues.SettingChanged += OnSettingValuesChanged;
 
@@ -38,33 +38,23 @@ namespace DirectorRework.Modules
             PluginConfig.maxConsecutiveCheapSkips.SettingChanged += MaxConsecutiveCheapSkips_SettingChanged;
         }
 
-        private void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
+        private static void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
         {
-            _prevCreditMult = PluginConfig.creditMultiplier.GetValue();
-            self.creditMultiplier *= _prevCreditMult;
-
-            self.minRerollSpawnInterval = PluginConfig.minRerollSpawnInterval.GetValue();
-            self.maxRerollSpawnInterval = PluginConfig.maxRerollSpawnInterval.GetValue();
-
-            self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.GetValue();
-            self.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.GetValue() <= 0 ? int.MaxValue : PluginConfig.maxConsecutiveCheapSkips.GetValue();
+            if (NetworkServer.active && !self.GetComponent<DirectorTweaks>())
+                self.gameObject.AddComponent<DirectorTweaks>();
 
             orig(self);
         }
 
         #region Event Handlers
-        private void OnEnabledChanged()
+        private static void OnEnabledChanged()
         {
             if (Enabled)
             {
-                On.RoR2.CombatDirector.Awake += CombatDirector_Awake;
-
                 OnSettingValuesChanged(null, null);
             }
             else
             {
-                On.RoR2.CombatDirector.Awake -= CombatDirector_Awake;
-
                 foreach (var director in CombatDirector.instancesList)
                 {
                     if (_prevCreditMult != 1f)
@@ -76,83 +66,73 @@ namespace DirectorRework.Modules
                     director.maximumNumberToSpawnBeforeSkipping = 6;
                     director.maxConsecutiveCheapSkips = int.MaxValue;
                 }
-
-                _prevCreditMult = 1f;
             }
         }
+        #endregion
+        private float _prevCreditMult = 1f;
+        private CombatDirector director;
 
-        private void OnSettingValuesChanged(object sender, EventArgs e)
+        public void Awake()
         {
-            var newCreditMult = PluginConfig.creditMultiplier.GetValue();
+            director = GetComponent<CombatDirector>();
+            _prevCreditMult = PluginConfig.creditMultiplier.GetValueOrDefault();
+            self.creditMultiplier *= _prevCreditMult;
 
-            foreach (var director in CombatDirector.instancesList)
+            self.minRerollSpawnInterval = PluginConfig.minRerollSpawnInterval.GetValueOrDefault();
+            self.maxRerollSpawnInterval = PluginConfig.maxRerollSpawnInterval.GetValueOrDefault();
+
+            self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.GetValueOrDefault();
+            self.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.GetValueOrDefault() <= 0 ? int.MaxValue : PluginConfig.maxConsecutiveCheapSkips.GetValueOrDefault();
+        }
+
+        private void OnSettingValuesChanged(object _, EventArgs __)
+        {
+            var newCreditMult = PluginConfig.creditMultiplier.GetValueOrDefault();
+
+            if (newCreditMult != _prevCreditMult)
             {
-                if (newCreditMult != _prevCreditMult)
-                {
-                    director.creditMultiplier /= _prevCreditMult;
-                    director.creditMultiplier *= newCreditMult;
-                }
-
-                director.minRerollSpawnInterval = PluginConfig.minRerollSpawnInterval.GetValue();
-                director.maxRerollSpawnInterval = PluginConfig.maxRerollSpawnInterval.GetValue();
-
-                director.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.GetValue();
-                director.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.GetValue() <= 0 ? int.MaxValue : PluginConfig.maxConsecutiveCheapSkips.GetValue();
+                director.creditMultiplier /= _prevCreditMult;
+                director.creditMultiplier *= newCreditMult;
             }
+
+            director.minRerollSpawnInterval = PluginConfig.minRerollSpawnInterval.GetValueOrDefault();
+            director.maxRerollSpawnInterval = PluginConfig.maxRerollSpawnInterval.GetValueOrDefault();
+
+            director.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.GetValueOrDefault();
+            director.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.GetValueOrDefault() <= 0 ? int.MaxValue : PluginConfig.maxConsecutiveCheapSkips.GetValueOrDefault();
 
             _prevCreditMult = newCreditMult;
         }
 
-        private void CreditMultiplier_SettingChanged(object sender, EventArgs e)
+        private void CreditMultiplier_SettingChanged(object _, EventArgs __)
         {
-            if (!Enabled)
-                return;
-
-            var newCreditMult = PluginConfig.creditMultiplier.GetValue();
+            var newCreditMult = PluginConfig.creditMultiplier.GetValueOrDefault();
 
             if (newCreditMult != _prevCreditMult)
             {
-                foreach (var director in CombatDirector.instancesList)
-                {
-                    director.creditMultiplier /= _prevCreditMult;
-                    director.creditMultiplier *= newCreditMult;
-                }
-
-                _prevCreditMult = newCreditMult;
+                director.creditMultiplier /= _prevCreditMult;
+                director.creditMultiplier *= newCreditMult;
             }
         }
 
-        private void MinRerollSpawnInterval_SettingChanged(object sender, EventArgs e)
+        private void MinRerollSpawnInterval_SettingChanged(object _, EventArgs __)
         {
-            foreach (var director in CombatDirector.instancesList)
-            {
-                director.minRerollSpawnInterval = PluginConfig.minRerollSpawnInterval.GetValue();
-            }
+            director.minRerollSpawnInterval = PluginConfig.minRerollSpawnInterval.GetValueOrDefault();
         }
 
-        private void MaxRerollSpawnInterval_SettingChanged(object sender, EventArgs e)
+        private void MaxRerollSpawnInterval_SettingChanged(object _, EventArgs __)
         {
-            foreach (var director in CombatDirector.instancesList)
-            {
-                director.maxRerollSpawnInterval = PluginConfig.maxRerollSpawnInterval.GetValue();
-            }
+            director.maxRerollSpawnInterval = PluginConfig.maxRerollSpawnInterval.GetValueOrDefault();
         }
 
-        private void MaximumNumberToSpawnBeforeSkipping_SettingChanged(object sender, EventArgs e)
+        private void MaximumNumberToSpawnBeforeSkipping_SettingChanged(object _, EventArgs __)
         {
-            foreach (var director in CombatDirector.instancesList)
-            {
-                director.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.GetValue();
-            }
+            director.maximumNumberToSpawnBeforeSkipping = PluginConfig.maximumNumberToSpawnBeforeSkipping.GetValueOrDefault();
         }
 
-        private void MaxConsecutiveCheapSkips_SettingChanged(object sender, EventArgs e)
+        private void MaxConsecutiveCheapSkips_SettingChanged(object _, EventArgs __)
         {
-            foreach (var director in CombatDirector.instancesList)
-            {
-                director.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.GetValue();
-            }
+            director.maxConsecutiveCheapSkips = PluginConfig.maxConsecutiveCheapSkips.GetValueOrDefault();
         }
-        #endregion
     }
 }

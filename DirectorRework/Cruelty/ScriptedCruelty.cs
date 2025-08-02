@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using DirectorRework.Modules;
 using RoR2;
 using UnityEngine.Networking;
 
@@ -44,6 +43,7 @@ namespace DirectorRework.Cruelty
                 }
             }
         }
+
         private static void AddEliteBuffs(CharacterBody body, Inventory inventory, Xoroshiro128Plus rng)
         {
             //Check amount of elite buffs the target has

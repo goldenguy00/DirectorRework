@@ -1,6 +1,8 @@
 ## 1.2.1
 
 - Content disabler should work better now
+- Added elite tier selection modifications
+- Adjusted director tweaks to account for fast/slow directors
 
 ## 1.2.0
 

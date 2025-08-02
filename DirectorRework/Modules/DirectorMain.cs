@@ -2,79 +2,165 @@
 using System.Linq;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
-using MonoMod.Utils;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
 
 namespace DirectorRework.Modules
 {
-    public class DirectorMain
+    public static class DirectorMain
     {
-        public static bool ConfigVarietyEnabled => PluginConfig.enableBossDiversity.Value || PluginConfig.enableSpawnDiversity.Value || PluginConfig.enableVieldsDiversity.Value;
-
         private const string SUBTITLE_FORMAT = "<sprite name=\"CloudLeft\" tint=1> {0} <sprite name=\"CloudRight\" tint=1>";
 
-        private bool varietyEnabled, refundEnabled;
+        private static bool _varietyEnabled, _refundEnabled;
 
-        public static DirectorMain Instance { get; private set; }
-        public static void Init() => Instance ??= new DirectorMain();
+        public static bool ConfigVarietyEnabled => PluginConfig.enableBossDiversity.Value || PluginConfig.enableSpawnDiversity.Value || PluginConfig.enableVieldsDiversity.Value;
 
-        private DirectorMain()
+        public static bool RefundEnabled
         {
-            OnSettingChanged(null, null);
-
-            PluginConfig.enableDirectorMain.SettingChanged += OnSettingChanged;
-            PluginConfig.enableSpawnDiversity.SettingChanged += OnSettingChanged;
-            PluginConfig.enableBossDiversity.SettingChanged += OnSettingChanged;
-            PluginConfig.enableVieldsDiversity.SettingChanged += OnSettingChanged;
-            PluginConfig.enableCreditRefund.SettingChanged += OnSettingChanged;
-        }
-
-        // fuck i hate this, worth a try tho
-        public void OnSettingChanged(object sender, EventArgs a)
-        {
-            var enabled = PluginConfig.enableDirectorMain.Value;
-
-            ApplyRefund(enabled && PluginConfig.enableCreditRefund.Value);
-            ApplyVariety(enabled && ConfigVarietyEnabled);
-        }
-
-        private void ApplyRefund(bool enabled)
-        {
-            if (refundEnabled != enabled)
+            get => _refundEnabled;
+            set
             {
-                refundEnabled = enabled;
+                if (_refundEnabled == value)
+                    return;
 
-                if (enabled)
+                _refundEnabled = value;
+
+                if (_refundEnabled)
                     On.RoR2.CombatDirector.Awake += CombatDirector_Awake;
                 else
                     On.RoR2.CombatDirector.Awake -= CombatDirector_Awake;
             }
         }
 
-        private void ApplyVariety(bool enabled)
+        public static bool VarietyEnabled
         {
-            if (varietyEnabled != enabled)
+            get => _varietyEnabled;
+            set
             {
-                varietyEnabled = enabled;
+                if (_varietyEnabled == value)
+                    return;
 
-                if (enabled)
+                _varietyEnabled = value;
+
+                if (_varietyEnabled)
                 {
                     On.RoR2.CombatDirector.SetNextSpawnAsBoss += CombatDirector_SetNextSpawnAsBoss;
+
                     IL.RoR2.CombatDirector.SetNextSpawnAsBoss += IL_CombatDirector_SetNextSpawnAsBoss;
                     IL.RoR2.CombatDirector.AttemptSpawnOnTarget += CombatDirector_AttemptSpawnOnTarget;
-                    On.RoR2.Chat.SendBroadcastChat_ChatMessageBase += ChangeMessage;
-                    On.RoR2.BossGroup.UpdateBossMemories += UpdateTitle;
+
+                    On.RoR2.Chat.SendBroadcastChat_ChatMessageBase += SendBroadcastChat_ChatMessageBase;
+                    On.RoR2.BossGroup.UpdateBossMemories += UpdateBossMemories;
                 }
                 else
                 {
-                    On.RoR2.CombatDirector.SetNextSpawnAsBoss -= CombatDirector_SetNextSpawnAsBoss;
-                    IL.RoR2.CombatDirector.SetNextSpawnAsBoss -= IL_CombatDirector_SetNextSpawnAsBoss;
+                    On.RoR2.BossGroup.UpdateBossMemories -= UpdateBossMemories;
+                    On.RoR2.Chat.SendBroadcastChat_ChatMessageBase -= SendBroadcastChat_ChatMessageBase;
+
                     IL.RoR2.CombatDirector.AttemptSpawnOnTarget -= CombatDirector_AttemptSpawnOnTarget;
-                    On.RoR2.Chat.SendBroadcastChat_ChatMessageBase -= ChangeMessage;
-                    On.RoR2.BossGroup.UpdateBossMemories -= UpdateTitle;
+                    IL.RoR2.CombatDirector.SetNextSpawnAsBoss -= IL_CombatDirector_SetNextSpawnAsBoss;
+
+                    On.RoR2.CombatDirector.SetNextSpawnAsBoss -= CombatDirector_SetNextSpawnAsBoss;
                 }
+            }
+        }
+
+        internal static void Init()
+        {
+            OnSettingChanged(null, null);
+
+            PluginConfig.enableDirectorMain.SettingChanged += OnSettingChanged;
+
+            PluginConfig.enableCreditRefund.SettingChanged += OnSettingChanged;
+
+            PluginConfig.enableSpawnDiversity.SettingChanged += OnSettingChanged;
+            PluginConfig.enableBossDiversity.SettingChanged += OnSettingChanged;
+            PluginConfig.enableVieldsDiversity.SettingChanged += OnSettingChanged;
+        }
+
+        private static void OnSettingChanged(object _, EventArgs __)
+        {
+            RefundEnabled = PluginConfig.enableDirectorMain.Value && PluginConfig.enableCreditRefund.Value;
+            VarietyEnabled = PluginConfig.enableDirectorMain.Value && ConfigVarietyEnabled;
+        }
+
+        #region Hooks
+
+        private static void SendBroadcastChat_ChatMessageBase(On.RoR2.Chat.orig_SendBroadcastChat_ChatMessageBase orig, ChatMessageBase message)
+        {
+            if (PluginConfig.enableSpawnDiversity.Value && message is Chat.SubjectFormatChatMessage chat)
+            {
+                if (chat.baseToken is "SHRINE_COMBAT_USE_MESSAGE" && chat.paramTokens?.Length > 0)
+                    chat.paramTokens[0] = Language.GetString("LOGBOOK_CATEGORY_MONSTER").ToLower();
+            }
+
+            orig(message);
+        }
+
+        private static void UpdateBossMemories(On.RoR2.BossGroup.orig_UpdateBossMemories orig, BossGroup self)
+        {
+            orig(self);
+
+            if (!PluginConfig.enableBossDiversity.Value)
+                return;
+
+            var maxMissingHp = float.MinValue;
+            CharacterBody cachedBody = null;
+
+            for (var i = 0; i < self.bossMemoryCount; i++)
+            {
+                ref BossGroup.BossMemory memory = ref self.bossMemories[i];
+
+                if (!memory.cachedBody || memory.lastObservedHealth <= 0f)
+                    continue;
+
+                var missingHp = memory.maxObservedMaxHealth + (2 * Mathf.Max(0f, memory.maxObservedMaxHealth - memory.lastObservedHealth));
+                if (missingHp > maxMissingHp)
+                {
+                    maxMissingHp = missingHp;
+                    cachedBody = memory.cachedBody;
+                }
+            }
+
+            if (!cachedBody)
+                return;
+
+            var bestObservedSubtitle = cachedBody.GetSubtitle();
+            if (string.IsNullOrEmpty(bestObservedSubtitle))
+                bestObservedSubtitle = Language.GetString("NULL_SUBTITLE");
+
+            self.bestObservedName = Util.GetBestBodyName(cachedBody.gameObject);
+            self.bestObservedSubtitle = string.Format(SUBTITLE_FORMAT, bestObservedSubtitle);
+        }
+
+        private static void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
+        {
+            orig(self);
+
+            if (!NetworkServer.active || self == TeleporterInteraction.instance?.bossDirector)
+                return;
+
+            self.onSpawnedServer.AddListener(OnSpawnedServer);
+
+            void OnSpawnedServer(GameObject masterObject)
+            {
+                var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
+                if (!master)
+                    return;
+
+                master.onBodyDestroyed += (body) =>
+                {
+                    if (PluginConfig.creditRefundMultiplier.Value <= 0)
+                        return;
+
+                    if (self && self.isActiveAndEnabled && self.monsterCredit > 0)
+                    {
+                        var refund = body?.cost ?? 0f;
+                        if (refund > 0f)
+                            self.monsterCredit += refund * PluginConfig.creditRefundMultiplier.Value * 0.01f;
+                    }
+                };
             }
         }
 
@@ -107,14 +193,6 @@ namespace DirectorRework.Modules
             else Log.Error("IL Hook failed for CombatDirector.SetNextSpawnAsBoss");
         }
 
-        private static DirectorCard RollForHorde(DirectorCard selection, CombatDirector self)
-        {
-            if (self.rng.RangeInt(0, 100) < PluginConfig.hordeOfManyChance.Value)
-                return GetNextSpawnCard(self, isBoss: true, spawnChampion: false) ?? selection;
-
-            return selection;
-        }
-
         private static void CombatDirector_AttemptSpawnOnTarget(ILContext il)
         {
             var c = new ILCursor(il)
@@ -124,13 +202,26 @@ namespace DirectorRework.Modules
 
             if (c.TryGotoPrev(
                     x => x.MatchLdcI4(1),
-                    x => x.MatchRet()
+                    x => x.MatchRet()) ||
+                c.TryGotoPrev(
+                    x => x.MatchLdcI4(1),
+                    x => x.MatchBr(out _)
                 ))
             {
                 c.Emit(OpCodes.Ldarg_0);
                 c.EmitDelegate(Simulate);
             }
             else Log.Error("IL Hook failed for CombatDirector.Simulate");
+        }
+        #endregion
+
+        #region Director Modification
+        private static DirectorCard RollForHorde(DirectorCard selection, CombatDirector self)
+        {
+            if (self.rng.RangeInt(0, 100) < PluginConfig.hordeOfManyChance.Value)
+                return GetNextSpawnCard(self, isBoss: true, spawnChampion: false) ?? selection;
+
+            return selection;
         }
 
         public static void Simulate(CombatDirector self)
@@ -239,84 +330,6 @@ namespace DirectorRework.Modules
 
             return currentActiveEliteTier;
         }
-
-        private void ChangeMessage(On.RoR2.Chat.orig_SendBroadcastChat_ChatMessageBase orig, ChatMessageBase message)
-        {
-            if (PluginConfig.enableSpawnDiversity.Value && message is Chat.SubjectFormatChatMessage chat && chat.paramTokens?.Any() is true && chat.baseToken is "SHRINE_COMBAT_USE_MESSAGE")
-                chat.paramTokens[0] = Language.GetString("LOGBOOK_CATEGORY_MONSTER").ToLower();
-
-            // Replace with generic message since shrine will have multiple enemy types
-            orig(message);
-        }
-
-        private void UpdateTitle(On.RoR2.BossGroup.orig_UpdateBossMemories orig, BossGroup self)
-        {
-            orig(self);
-
-            if (!PluginConfig.enableBossDiversity.Value)
-                return;
-
-            var maxMissingHp = float.MinValue;
-            CharacterBody cachedBody = null;
-
-            for (var i = 0; i < self.bossMemoryCount; i++)
-            {
-                ref BossGroup.BossMemory memory = ref self.bossMemories[i];
-
-                if (!memory.cachedBody || memory.lastObservedHealth <= 0f)
-                    continue;
-
-                var missingHp = memory.maxObservedMaxHealth + (4 * Mathf.Max(0f, memory.maxObservedMaxHealth - memory.lastObservedHealth));
-                if (missingHp > maxMissingHp)
-                {
-                    maxMissingHp = missingHp;
-                    cachedBody = memory.cachedBody;
-                }
-            }
-
-            if (cachedBody)
-            {
-                self.bestObservedName = Util.GetBestBodyName(cachedBody.gameObject);
-                var bestObservedSubtitle = cachedBody.GetSubtitle();
-                if (string.IsNullOrEmpty(bestObservedSubtitle))
-                    bestObservedSubtitle = Language.GetString("NULL_SUBTITLE");
-
-                self.bestObservedSubtitle = string.Format(SUBTITLE_FORMAT, bestObservedSubtitle);
-            }
-        }
-
-        private void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
-        {
-            orig(self);
-
-            if (!NetworkServer.active || self == TeleporterInteraction.instance?.bossDirector)
-                return;
-
-            self.onSpawnedServer.AddListener(OnSpawnedServer);
-
-            void OnSpawnedServer(GameObject masterObject)
-            {
-                var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
-                if (!master)
-                    return;
-
-                var body = master.GetBody();
-                if (body && !body.isBoss && !body.isChampion && body.cost > 0f && body.teamComponent.teamIndex == TeamIndex.Monster)
-                    master.onBodyDestroyed += OnBodyDestroyed;
-
-                void OnBodyDestroyed(CharacterBody body)
-                {
-                    if (PluginConfig.creditRefundMultiplier.Value <= 0)
-                        return;
-
-                    if (self && self.isActiveAndEnabled && self.monsterCredit > 0)
-                    {
-                        var refund = body?.cost * PluginConfig.creditRefundMultiplier.Value * 0.01f;
-                        if (refund.HasValue)
-                            self.monsterCredit += refund.Value;
-                    }
-                }
-            }
-        }
+        #endregion
     }
 }

@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using DirectorRework.Modules;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -9,12 +8,6 @@ namespace DirectorRework.Cruelty
 {
     public static class CombatCruelty
     {
-        public readonly struct EliteWithCost(EliteDef def, float cost)
-        {
-            public readonly EliteDef eliteDef = def;
-            public readonly float cost = cost;
-        }
-
         public static void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
         {
             orig(self);
@@ -49,11 +42,8 @@ namespace DirectorRework.Cruelty
             }
         }
 
-        private static System.Diagnostics.Stopwatch s = new();
-        private static System.Diagnostics.Stopwatch s1 = new();
         private static void AddEliteBuffs(CombatDirector director, CharacterBody body, Inventory inventory)
         {
-            s.Start();
             //Check amount of elite buffs the target has
             var currentEliteBuffs = HG.CollectionPool<BuffIndex, HashSet<BuffIndex>>.RentCollection();
             if (body.eliteBuffCount > 0)
@@ -90,16 +80,10 @@ namespace DirectorRework.Cruelty
             }
 
             HG.CollectionPool<BuffIndex, HashSet<BuffIndex>>.ReturnCollection(currentEliteBuffs);
-            s.Stop();
-            Log.Debug("Random " + ((int)(s1.Elapsed.TotalMilliseconds * 100f) / 100));
-            Log.Debug("Time " + ((int)(s.Elapsed.TotalMilliseconds * 100f) / 100));
-            s.Reset();
-            s1.Reset();
         }
 
         private static bool GetRandom(float availableCredits, DirectorCard card, Xoroshiro128Plus rng, HashSet<BuffIndex> currentBuffs, out EliteDef eliteDef, out float cost)
         {
-            s1.Start();
             eliteDef = null;
             cost = 0f;
 
@@ -132,7 +116,6 @@ namespace DirectorRework.Cruelty
             eliteDef = EliteCatalog.GetEliteDef(enumerator.Current.def);
             cost = enumerator.Current.eliteCost;
 
-            s1.Stop();
             return true;
         }
 

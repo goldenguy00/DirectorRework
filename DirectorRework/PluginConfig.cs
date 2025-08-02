@@ -23,6 +23,7 @@ namespace DirectorRework
         public static ConfigEntry<bool> bossesAreElite;
         public static ConfigEntry<int> triggerChance;
         public static ConfigEntry<int> successChance;
+        public static ConfigEntry<string> blacklistedElites;
 
         public static ConfigEntry<bool> enableBossDiversity;
         public static ConfigEntry<bool> enableSpawnDiversity;
@@ -43,7 +44,7 @@ namespace DirectorRework
         public static ConfigEntry<bool> enableLinearScaling;
         public static ConfigEntry<float> linearScalingMultiplier;
 
-        public static T GetValue<T>(this ConfigEntry<T> entry)
+        public static T GetValueOrDefault<T>(this ConfigEntry<T> entry)
         {
             if (useRecommendedValues.Value)
                 return (T)entry.DefaultValue;
@@ -133,6 +134,11 @@ namespace DirectorRework
                 10,
                 "Chance to add an additional affix after the first. Set to 100 to make it always attempt to add as many affixes as possible.",
                 0, 100);
+
+            blacklistedElites = cfg.BindOption(section,
+                "Blacklisted Elites",
+                "EliteLunarEquipment, AffixBlightedMoffein",
+                "Blacklisted elite equipment names. Use internal names, like EliteLunarEquipment");
         }
 
         private static void BindMain(ConfigFile cfg, string section)
