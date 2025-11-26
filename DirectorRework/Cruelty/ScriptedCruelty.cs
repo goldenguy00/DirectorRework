@@ -12,35 +12,34 @@ namespace DirectorRework.Cruelty
         {
             orig(self);
 
-            if (NetworkServer.active && self.combatSquad)
-            {
-                var rng = self.rng;
-                self.combatSquad.onMemberAddedServer += OnMemberAddedServer;
+            if (!NetworkServer.active || !self.combatSquad)
+                return;
 
-                void OnMemberAddedServer(CharacterMaster master)
+            var rng = self.rng;
+            self.combatSquad.onMemberAddedServer += OnMemberAddedServer;
+            void OnMemberAddedServer(CharacterMaster master)
+            {
+                if (!PluginConfig.enableCruelty.Value)
+                    return;
+
+                var body = master ? master.GetBody() : null;
+                if (!body)
+                    return;
+
+                if (!master.inventory || master.inventory.GetItemCountEffective(RoR2Content.Items.HealthDecay) > 0)
+                    return;
+
+                if (!PluginConfig.guaranteeSpecialBoss.Value)
                 {
-                    if (!PluginConfig.enableCruelty.Value)
+                    if (!Util.CheckRoll(PluginConfig.triggerChance.Value))
                         return;
 
-                    if (master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
-                    {
-                        var body = master.GetBody();
-                        if (body)
-                        {
-                            if (!PluginConfig.guaranteeSpecialBoss.Value)
-                            {
-                                if (!Util.CheckRoll(PluginConfig.triggerChance.Value))
-                                    return;
-
-                                var isBoss = master.isBoss || body.isChampion;
-                                if (!PluginConfig.allowBosses.Value && isBoss)
-                                    return;
-                            }
-
-                            ScriptedCruelty.AddEliteBuffs(body, master.inventory, rng);
-                        }
-                    }
+                    bool isBoss = master.isBoss || body.isChampion;
+                    if (!PluginConfig.allowBosses.Value && isBoss)
+                        return;
                 }
+
+                ScriptedCruelty.AddEliteBuffs(body, master.inventory, rng);
             }
         }
 

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using HG;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -12,33 +13,34 @@ namespace DirectorRework.Cruelty
         {
             orig(self);
 
-            if (NetworkServer.active)
+            if (!NetworkServer.active)
+                return;
+
+            self.onSpawnedServer.AddListener(OnSpawnedServer);
+            void OnSpawnedServer(GameObject masterObject)
             {
-                self.onSpawnedServer.AddListener(OnSpawnedServer);
+                if (!PluginConfig.enableCruelty.Value || !Util.CheckRoll(PluginConfig.triggerChance.Value))
+                    return;
 
-                void OnSpawnedServer(GameObject masterObject)
-                {
-                    if (PluginConfig.enableCruelty.Value && Util.CheckRoll(PluginConfig.triggerChance.Value))
-                    {
-                        var master = masterObject ? masterObject.GetComponent<CharacterMaster>() : null;
-                        if (master && master.inventory && master.inventory.GetItemCount(RoR2Content.Items.HealthDecay) <= 0)
-                        {
-                            var body = master.GetBody();
-                            if (body)
-                            {
-                                var isBoss = master.isBoss || body.isChampion;
-                                if (!PluginConfig.allowBosses.Value && isBoss)
-                                    return;
+                if (!masterObject || !masterObject.TryGetComponent<CharacterMaster>(out var master))
+                    return;
 
-                                var isElite = body.eliteBuffCount > 0 || (PluginConfig.bossesAreElite.Value && isBoss);
-                                if (PluginConfig.onlyApplyToElites.Value && !isElite)
-                                    return;
+                if (!master.inventory || master.inventory.GetItemCountEffective(RoR2Content.Items.HealthDecay) != 0)
+                    return;
 
-                                CombatCruelty.AddEliteBuffs(self, body, master.inventory);
-                            }
-                        }
-                    }
-                };
+                var body = master.GetBody();
+                if (!body)
+                    return;
+
+                bool isBoss = master.isBoss || body.isChampion;
+                if (!PluginConfig.allowBosses.Value && isBoss)
+                    return;
+
+                bool isElite = body.eliteBuffCount > 0 || (PluginConfig.bossesAreElite.Value && isBoss);
+                if (PluginConfig.onlyApplyToElites.Value && !isElite)
+                    return;
+
+                CombatCruelty.AddEliteBuffs(self, body, master.inventory);
             }
         }
 

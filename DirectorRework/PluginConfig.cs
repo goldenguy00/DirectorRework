@@ -51,6 +51,14 @@ namespace DirectorRework
             return entry.Value;
         }
 
+        public static int GetValueOrMax(this ConfigEntry<int> entry)
+        {
+            var value = GetValueOrDefault<int>(entry);
+            if (value > 0)
+                return value;
+            return int.MaxValue;
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         public static void Init(ConfigFile cfg)
         {
