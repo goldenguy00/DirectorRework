@@ -1,8 +1,15 @@
+## 1.3.0
+- Accounted for certain AC changes
+- Adjusted director tweaks to account for fast/slow directors
+- Added new config for to overwriting the spawn interval. Set to false for slower hordes.
+- Added new config for disabling cruelty boss stat boosts. Default to false.
+- Added new config for debug logging
+
 ## 1.2.1
 
+- Added configurable cruelty elite blacklist
+- Adjusted what makes an elite valid.
 - Content disabler should work better now
-- Added elite tier selection modifications
-- Adjusted director tweaks to account for fast/slow directors
 
 ## 1.2.0
 

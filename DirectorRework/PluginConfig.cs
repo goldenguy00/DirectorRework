@@ -14,6 +14,8 @@ namespace DirectorRework
         public static ConfigEntry<bool> enableDirectorMain;
         public static ConfigEntry<bool> enableDirectorTweaks;
         public static ConfigEntry<bool> enableScalingTweaks;
+        public static ConfigEntry<bool> enableDebugLogs;
+        public static ConfigEntry<bool> enableMoreDebugLogs;
 
         public static ConfigEntry<int> maxAffixes;
         public static ConfigEntry<int> maxScriptedAffixes;
@@ -21,6 +23,7 @@ namespace DirectorRework
         public static ConfigEntry<bool> allowBosses;
         public static ConfigEntry<bool> onlyApplyToElites;
         public static ConfigEntry<bool> bossesAreElite;
+        public static ConfigEntry<bool> bossesGetStats;
         public static ConfigEntry<int> triggerChance;
         public static ConfigEntry<int> successChance;
         public static ConfigEntry<string> blacklistedElites;
@@ -34,9 +37,12 @@ namespace DirectorRework
         public static ConfigEntry<int> maxBossSpawns;
 
         public static ConfigEntry<bool> useRecommendedValues;
-        public static ConfigEntry<float> minRerollSpawnInterval;
-        public static ConfigEntry<float> maxRerollSpawnInterval;
         public static ConfigEntry<float> creditMultiplier;
+        public static ConfigEntry<float> spawnDistanceMultiplier;
+        public static ConfigEntry<bool> useSlowDirector;
+        public static ConfigEntry<float> fastSpawnInterval;
+        public static ConfigEntry<float> slowSpawnInterval;
+        public static ConfigEntry<float> spawnIntervalVariance;
         public static ConfigEntry<int> maximumNumberToSpawnBeforeSkipping;
         public static ConfigEntry<int> maxConsecutiveCheapSkips;
 
@@ -49,14 +55,6 @@ namespace DirectorRework
             if (useRecommendedValues.Value)
                 return (T)entry.DefaultValue;
             return entry.Value;
-        }
-
-        public static int GetValueOrMax(this ConfigEntry<int> entry)
-        {
-            var value = GetValueOrDefault<int>(entry);
-            if (value > 0)
-                return value;
-            return int.MaxValue;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
@@ -95,6 +93,16 @@ namespace DirectorRework
                 "Enable Scaling Tweaks",
                 true,
                 "Enables run scaling tweaks. Disable to prevent all modifications in 'Scaling Tweaks' from loading.");
+
+            enableDebugLogs = cfg.BindOption(section,
+                "Enable Debug Logs",
+                false,
+                "Prints some stuff that might be useful. turn this on before reporting a problem :)");
+
+            enableMoreDebugLogs = cfg.BindOption(section,
+                "Enable Even More Debug Logs",
+                false,
+                "Nerd.");
         }
 
         private static void BindCruelty(ConfigFile cfg, string section)
@@ -131,9 +139,14 @@ namespace DirectorRework
                 true,
                 "When enabled, bosses do not have to be elite to receive affixes.");
 
+            bossesGetStats = cfg.BindOption(section,
+                "Bosses Get Stats",
+                false,
+                "When enabled, bosses recieve bonus health and damage buffs.");
+
             triggerChance = cfg.BindOptionSlider(section,
                 "Trigger Chance",
-                25,
+                20,
                 "Chance to apply the first additional affix to an enemy. Set to 100 to make it always apply.",
                 0, 100);
 
@@ -196,36 +209,53 @@ namespace DirectorRework
                 "Use Recommended Values",
                 true,
                 "If enabled, then the recommended values for this section will be used instead of the ones set in the config. " +
-                "Disable this setting if you want to change this section.");
+                "Disable this setting if you want to change this section. Set any value to -1 to retain the default vanilla value.");
 
             creditMultiplier = cfg.BindOptionSlider(section,
                 "Credit Multiplier",
                 1f,
-                "How much to multiply money wave yield by. Vanilla is 1.",
-                0.1f, 5f);
+                "Multiplies the monster credit accumulation rate.",
+                -1f, 5f);
 
-            minRerollSpawnInterval = cfg.BindOptionSlider(section,
-                "Minimum Reroll Spawn Interval",
-                4f,
-                "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 2.33333",
-                0.1f, 20f);
+            spawnDistanceMultiplier = cfg.BindOptionSlider(section,
+                "Spawn Distance Multiplier",
+                1.2f,
+                "Multiplier to the max spawn range from the desired target.",
+                -1f, 5f);
 
-            maxRerollSpawnInterval = cfg.BindOptionSlider(section,
-                "Maximum Reroll Spawn Interval",
-                6f,
-                "Used when a spawn is rejected and the director needs to wait to build more credits. Vanilla is 4.33333",
-                0.1f, 20f);
+            spawnIntervalVariance = cfg.BindOptionSlider(section,
+                "Spawn Interval Multiplier",
+                1.4f,
+                "Adds a degree of randomness to the spawn timings, max delay determined by the interval times this value.",
+                1f, 5f);
+
+            fastSpawnInterval = cfg.BindOptionSlider(section,
+                "Fast Spawn Interval",
+                5f,
+                "Minimum delay before attempting to spawn a new wave.",
+                -1f, 20f);
+
+            useSlowDirector = cfg.BindOption(section,
+                "Use Slow Director",
+                true,
+                "Disable to make all stage spawning directors use the fast spawn intervals.");
+
+            slowSpawnInterval = cfg.BindOptionSlider(section,
+                "Slow Spawn Interval",
+                12f,
+                "Minimum delay before attempting to spawn a new expensive wave. Requires Use Slow Director to be enabled, and should be larger than the fast interval.",
+                -1f, 30f);
 
             maximumNumberToSpawnBeforeSkipping = cfg.BindOptionSlider(section,
                 "Maximum Number To Spawn Before Skipping",
-                6,
-                "Maximum number of enemies in a single wave. If the director can afford more than this, it'll reroll the spawncard. Vanilla is 6",
-                1, 20);
+                5,
+                "Maximum number of enemies in a single wave. If the director can afford more than this, it'll reroll the spawncard and try again later.",
+                -1, 20);
 
             maxConsecutiveCheapSkips = cfg.BindOptionSlider(section,
                 "Max Consecutive Cheap Skips",
-                6,
-                "If skipSpawnIfTooCheap is true, we'll behave as though it's not set after this many consecutive skips. Vanilla is -1",
+                4,
+                "If skipSpawnIfTooCheap is true, we'll behave as though it's not set after this many consecutive skips.",
                 -1, 20);
         }
 
@@ -265,7 +295,7 @@ namespace DirectorRework
             }
             catch (Exception e)
             {
-                Log.Debug(e.ToString());
+                Log.Info(e.ToString());
             }
         }
 

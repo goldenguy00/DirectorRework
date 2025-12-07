@@ -1,11 +1,20 @@
-# Director Rework
+## NOTE:
+
+### Elite Reworks and Risk of Options 
+### *CAN BE REMOVED* without any issue
+They are dependencies that should be downloaded alongside this mod for the intended experience, however, there's nothing in this mod that _actually_ needs them installed.
+
+
+---
+
+# DIRECTOR REWORK
 
 A continuation of Nuxlar's Director Rework, alongside Moffeins affix stacking idea from Artifact of Cruelty. Go check out the originals below.
 
 - Multiple enemy types per wave
 - Multiple elite affixes on enemies
 - Modifies director to be more fast paced
-- Default settings are tuned to be balanced 
+- Default settings are tuned to be balanced around EliteReworks
 
 Fully configurable and will apply modifications immediately (host only), and turning off features will remove the hooks entirely.
 - Config options with RiskOfOptions support to fine tune the spawn logic.
@@ -24,17 +33,9 @@ Default values are tuned to make the early game pacing faster and to work well w
     "Director credits are set to 1.0x by default, because the mod is set up to increase spawning through less brute-force methods."
     "ITS RECOMMENDED TO SET ALL OTHER MODS TO 1.0x !!!",
 
-### Additional Dependencies
-
-Elite Reworks and Risk of Options are both listed as dependencies, and should be downloaded alongside this mod for the intended experience.
-
-Both mods can be removed without any issue if you'd like, since there's nothing in this mod that _actually_ needs them installed.
-
 ---
 
 ## Credits / Contents
-
-All code is written by me, and no assets taken. I'm a thief of the intellectual property variety.
 
 ---
 

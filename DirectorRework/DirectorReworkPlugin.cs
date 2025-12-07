@@ -19,7 +19,7 @@ namespace DirectorRework
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "DirectorReworkPlus";
-        public const string PluginVersion = "1.2.1";
+        public const string PluginVersion = "1.3.0";
 
         public static DirectorReworkPlugin Instance { get; private set; }
 
@@ -32,6 +32,8 @@ namespace DirectorRework
             Log.Init(Logger);
             PluginConfig.Init(Config);
 
+            CombatCruelty.Init();
+            ScriptedCruelty.Init();
             CrueltyManager.Init();
             DirectorMain.Init();
             DirectorTweaks.Init();

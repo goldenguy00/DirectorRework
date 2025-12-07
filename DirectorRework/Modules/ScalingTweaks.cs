@@ -7,11 +7,12 @@ using UnityEngine.Networking;
 
 namespace DirectorRework.Modules
 {
-    public static class ScalingTweaks
+    public class ScalingTweaks
     {
-        private static bool linearScaling, rampTyphoonCredits;
-
-        public static void Init()
+        private bool linearScaling, rampTyphoonCredits;
+        public static ScalingTweaks Instance { get; private set; }
+        public static void Init() => Instance ??= new ScalingTweaks();
+        public ScalingTweaks()
         {
             OnSettingChanged(null, null);
 
@@ -21,7 +22,7 @@ namespace DirectorRework.Modules
         }
 
         // fuck i hate this, worth a try tho
-        public static void OnSettingChanged(object sender, EventArgs a)
+        public void OnSettingChanged(object sender, EventArgs a)
         {
             var enabled = PluginConfig.enableScalingTweaks.Value;
 
@@ -29,7 +30,7 @@ namespace DirectorRework.Modules
             ApplyTyphoonRamp(enabled && PluginConfig.rampTyphoonCredits.Value);
         }
 
-        private static void ApplyLinearScaling(bool enabled)
+        private void ApplyLinearScaling(bool enabled)
         {
             if (linearScaling != enabled)
             {
@@ -42,7 +43,7 @@ namespace DirectorRework.Modules
             }
         }
 
-        private static void ApplyTyphoonRamp(bool enabled)
+        private void ApplyTyphoonRamp(bool enabled)
         {
             if (rampTyphoonCredits != enabled)
             {
@@ -55,13 +56,13 @@ namespace DirectorRework.Modules
             }
         }
 
-        private static void CombatDirector_OnEnable(On.RoR2.CombatDirector.orig_OnEnable orig, CombatDirector self)
+        private void CombatDirector_OnEnable(On.RoR2.CombatDirector.orig_OnEnable orig, CombatDirector self)
         {
             orig(self);
 
             if (!NetworkServer.active || !Run.instance)
                 return;
-            self.spawnDistanceMultiplier *= 1.25f;
+
             self.creditMultiplier = GetNewCreditMultiplier(self.creditMultiplier);
 
             for (int i = 0; i < self.moneyWaves.Length; i++)
@@ -71,7 +72,7 @@ namespace DirectorRework.Modules
         }
 
         // this is the dumbest shit ive ever written. so much arbitrary shit but it had to happen
-        private static float GetNewCreditMultiplier(float creditMultiplier)
+        private float GetNewCreditMultiplier(float creditMultiplier)
         {
             if (creditMultiplier is < 1.3f or > 2f)
                 return creditMultiplier;
