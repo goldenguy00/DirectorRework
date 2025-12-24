@@ -1,4 +1,5 @@
 ﻿using System;
+using DirectorRework.Config;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -26,11 +27,14 @@ namespace DirectorRework.Modules
         {
             On.RoR2.CombatDirector.Awake += CombatDirector_Awake;
 
-            _enabled = PluginConfig.enableDirectorTweaks.Value;
-            PluginConfig.enableDirectorTweaks.SettingChanged += (_, __) =>
-            {
-                ModuleEnabled = PluginConfig.enableDirectorTweaks.Value;
-            };
+            SettingChanged();
+            PluginConfig.useRecommendedValues[PluginConfig.enableDirectorTweaks.Definition.Section].SettingChanged += SettingChanged;
+            PluginConfig.enableDirectorTweaks.SettingChanged += SettingChanged;
+        }
+
+        private static void SettingChanged(object _ = null, EventArgs __ = null)
+        {
+            ModuleEnabled = PluginConfig.enableDirectorTweaks.GetValueOrDefault();
         }
 
         private static void CombatDirector_Awake(On.RoR2.CombatDirector.orig_Awake orig, CombatDirector self)
@@ -54,7 +58,7 @@ namespace DirectorRework.Modules
 
         private void SetDirector(CombatDirector director)
         {
-            if (PluginConfig.enableDebugLogs.Value)
+            if (PluginConfig.enableDebugLogs.GetValueOrDefault())
                 CombatDirector.cvDirectorCombatEnableInternalLogs.SetBool(true);
 
             _director = director;
@@ -107,7 +111,7 @@ namespace DirectorRework.Modules
             eventHandlersSet = newEnabled;
             if (eventHandlersSet)
             {
-                PluginConfig.useRecommendedValues.SettingChanged += OnSettingValuesChanged;
+                PluginConfig.useRecommendedValues[PluginConfig.enableDirectorTweaks.Definition.Section].SettingChanged += OnSettingValuesChanged;
 
                 PluginConfig.creditMultiplier.SettingChanged += CreditMultiplier_SettingChanged;
                 PluginConfig.spawnDistanceMultiplier.SettingChanged += SpawnDistanceMultiplier_SettingChanged;
@@ -122,7 +126,7 @@ namespace DirectorRework.Modules
             }
             else
             {
-                PluginConfig.useRecommendedValues.SettingChanged -= OnSettingValuesChanged;
+                PluginConfig.useRecommendedValues[PluginConfig.enableDirectorTweaks.Definition.Section].SettingChanged -= OnSettingValuesChanged;
 
                 PluginConfig.creditMultiplier.SettingChanged -= CreditMultiplier_SettingChanged;
                 PluginConfig.spawnDistanceMultiplier.SettingChanged -= SpawnDistanceMultiplier_SettingChanged;
@@ -165,8 +169,9 @@ namespace DirectorRework.Modules
                     _director.creditMultiplier *= _internalCreditMult;
             }
 
-            if (!PluginConfig.enableMoreDebugLogs.Value || oldValue == _director.creditMultiplier)
+            if (!PluginConfig.enableMoreDebugLogs.GetValueOrDefault() || oldValue == _director.creditMultiplier)
                 return;
+
             Log.Debug(gameObject.name + " | creditMult\r\n\t" +
                 "prv: " + oldValue + "\r\n\t" +
                 "new: " + _director.creditMultiplier);
@@ -187,7 +192,7 @@ namespace DirectorRework.Modules
                     _director.spawnDistanceMultiplier *= _internalSpawnDistMult;
             }
 
-            if (!PluginConfig.enableMoreDebugLogs.Value || oldValue == _director.spawnDistanceMultiplier)
+            if (!PluginConfig.enableMoreDebugLogs.GetValueOrDefault() || oldValue == _director.spawnDistanceMultiplier)
                 return;
 
             Log.Debug(gameObject.name + " | spawnMult\r\n\t" +
@@ -229,15 +234,15 @@ namespace DirectorRework.Modules
             if (_director.minRerollSpawnInterval == newMin && _director.maxRerollSpawnInterval == newMax)
                 return;
 
+            if (PluginConfig.enableMoreDebugLogs.GetValueOrDefault())
+            {
+                Log.Debug(gameObject.name + " | spawnInterval\r\n\t" +
+                    "prv: " + _director.minRerollSpawnInterval + " and " + _director.maxRerollSpawnInterval + "\r\n\t" +
+                    "new: " + newMin + " and " + newMax);
+            }
+
             _director.minRerollSpawnInterval = newMin;
             _director.maxRerollSpawnInterval = newMax;
-
-            if (!PluginConfig.enableMoreDebugLogs.Value)
-                return;
-
-            Log.Debug(gameObject.name + " | spawnInterval\r\n\t" +
-                "prv: " + _vanillaMinSpawnInterval + " and " + _vanillaMaxSpawnInterval + "\r\n\t" +
-                "new: " + newMin + " and " + newMax);
         }
 
         private void MaximumNumberToSpawnBeforeSkipping_SettingChanged(object _ = null, EventArgs __ = null)
@@ -249,14 +254,14 @@ namespace DirectorRework.Modules
             if (_director.maximumNumberToSpawnBeforeSkipping == newValue)
                 return;
 
+            if (PluginConfig.enableMoreDebugLogs.GetValueOrDefault())
+            {
+                Log.Debug(gameObject.name + " | maxBeforeSkip\r\n\t" +
+                    "prv: " + _director.maximumNumberToSpawnBeforeSkipping + "\r\n\t" +
+                    "new: " + newValue);
+            }
+
             _director.maximumNumberToSpawnBeforeSkipping = newValue;
-
-            if (!PluginConfig.enableMoreDebugLogs.Value)
-                return;
-
-            Log.Debug(gameObject.name + " | maxBeforeSkip\r\n\t" +
-                "prv: " + _vanillaMaxSpawns + "\r\n\t" +
-                "new: " + newValue);
         }
 
         private void MaxConsecutiveCheapSkips_SettingChanged(object _ = null, EventArgs __ = null)
@@ -268,14 +273,14 @@ namespace DirectorRework.Modules
             if (_director.maxConsecutiveCheapSkips == newValue)
                 return;
 
+            if (PluginConfig.enableMoreDebugLogs.GetValueOrDefault())
+            {
+                Log.Debug(gameObject.name + " | maxConsecutiveSkips\r\n\t" +
+                    "prv: " + _director.maxConsecutiveCheapSkips + "\r\n\t" +
+                    "new: " + newValue);
+            }
+
             _director.maxConsecutiveCheapSkips = newValue;
-
-            if (!PluginConfig.enableMoreDebugLogs.Value)
-                return;
-
-            Log.Debug(gameObject.name + " | consecutive skips\r\n\t" +
-                "prv: " + _director.maxConsecutiveCheapSkips + "\r\n\t" +
-                "new: " + newValue);
         }
     }
 }

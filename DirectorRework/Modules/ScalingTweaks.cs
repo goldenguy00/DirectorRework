@@ -1,4 +1,5 @@
 ﻿using System;
+using DirectorRework.Config;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using RoR2;
@@ -12,22 +13,23 @@ namespace DirectorRework.Modules
         private bool linearScaling, rampTyphoonCredits;
         public static ScalingTweaks Instance { get; private set; }
         public static void Init() => Instance ??= new ScalingTweaks();
-        public ScalingTweaks()
+        private ScalingTweaks()
         {
-            OnSettingChanged(null, null);
+            OnSettingChanged();
 
             PluginConfig.enableScalingTweaks.SettingChanged += OnSettingChanged;
+            PluginConfig.useRecommendedValues[PluginConfig.enableScalingTweaks.Definition.Section].SettingChanged += OnSettingChanged;
+
             PluginConfig.enableLinearScaling.SettingChanged += OnSettingChanged;
             PluginConfig.rampTyphoonCredits.SettingChanged += OnSettingChanged;
         }
 
-        // fuck i hate this, worth a try tho
-        public void OnSettingChanged(object sender, EventArgs a)
+        public void OnSettingChanged(object _ = null, EventArgs __ = null)
         {
-            var enabled = PluginConfig.enableScalingTweaks.Value;
+            var enabled = PluginConfig.enableScalingTweaks.GetValueOrDefault();
 
-            ApplyLinearScaling(enabled && PluginConfig.enableLinearScaling.Value);
-            ApplyTyphoonRamp(enabled && PluginConfig.rampTyphoonCredits.Value);
+            ApplyLinearScaling(enabled && PluginConfig.enableLinearScaling.GetValueOrDefault());
+            ApplyTyphoonRamp(enabled && PluginConfig.rampTyphoonCredits.GetValueOrDefault());
         }
 
         private void ApplyLinearScaling(bool enabled)
@@ -115,7 +117,7 @@ namespace DirectorRework.Modules
 
         public static float GetStageMultiplier(int stageClearCount, float currentScaling)
         {
-            float linearScaling = 1f + (PluginConfig.linearScalingMultiplier.Value * stageClearCount);
+            float linearScaling = 1f + (PluginConfig.linearScalingMultiplier.GetValueOrDefault() * stageClearCount);
             return Mathf.Max(currentScaling, linearScaling);
         }
     }

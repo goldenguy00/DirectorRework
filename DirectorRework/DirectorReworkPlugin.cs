@@ -2,6 +2,7 @@ using System.Security;
 using System.Security.Permissions;
 using BepInEx;
 using BepInEx.Bootstrap;
+using DirectorRework.Config;
 using DirectorRework.Cruelty;
 using DirectorRework.Modules;
 
@@ -19,7 +20,7 @@ namespace DirectorRework
         public const string PluginGUID = $"com.{PluginAuthor}.{PluginName}";
         public const string PluginAuthor = "score";
         public const string PluginName = "DirectorReworkPlus";
-        public const string PluginVersion = "1.3.0";
+        public const string PluginVersion = "1.3.2";
 
         public static DirectorReworkPlugin Instance { get; private set; }
 

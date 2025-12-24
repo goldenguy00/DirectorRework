@@ -26,6 +26,7 @@
     <PackageReference Include="MMHOOK.RoR2" Version="2025.11.19">
       <NoWarn>NU1701</NoWarn>
     </PackageReference>
+    <PackageReference Include="score-MiscFixes" Version="1.5.1" />
   </ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="$(ConfigurationName) == Release">

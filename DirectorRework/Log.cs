@@ -1,4 +1,5 @@
 ﻿using BepInEx.Logging;
+using DirectorRework.Config;
 
 namespace DirectorRework
 {
@@ -13,12 +14,12 @@ namespace DirectorRework
 
         public static void Debug(string data)
         {
-            if (PluginConfig.enableDebugLogs.Value)
+            if (PluginConfig.enableDebugLogs.GetValueOrDefault())
                 _logSource.LogDebug(data);
         }
         public static void Info(string data)
         {
-            if (PluginConfig.enableDebugLogs.Value)
+            if (PluginConfig.enableDebugLogs.GetValueOrDefault())
                 _logSource.LogInfo(data);
         }
         public static void Error(string data) => _logSource.LogError(data);

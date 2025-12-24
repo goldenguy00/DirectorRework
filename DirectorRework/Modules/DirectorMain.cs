@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using DirectorRework.Config;
 using HarmonyLib;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
@@ -13,7 +14,7 @@ namespace DirectorRework.Modules
     {
         private const string SUBTITLE_FORMAT = "<sprite name=\"CloudLeft\" tint=1> {0} <sprite name=\"CloudRight\" tint=1>";
 
-        public bool ConfigVarietyEnabled => PluginConfig.enableBossDiversity.Value || PluginConfig.enableSpawnDiversity.Value || PluginConfig.enableVieldsDiversity.Value;
+        public static bool ConfigVarietyEnabled => PluginConfig.enableBossDiversity.GetValueOrDefault() || PluginConfig.enableWorldDiversity.GetValueOrDefault() || PluginConfig.enableVieldsDiversity.GetValueOrDefault();
 
         public bool RefundEnabled
         {
@@ -64,33 +65,34 @@ namespace DirectorRework.Modules
                 }
             }
         }
-        private CombatDirector self;
+
         public static DirectorMain Instance { get; private set; }
         internal static void Init() => Instance ??= new DirectorMain();
         public DirectorMain()
         {
-            OnSettingChanged(null, null);
+            OnSettingChanged();
 
-            PluginConfig.enableDirectorMain.SettingChanged += OnSettingChanged;
+            PluginConfig.enableSpawnDiversity.SettingChanged += OnSettingChanged;
+            PluginConfig.useRecommendedValues[PluginConfig.enableSpawnDiversity.Definition.Section].SettingChanged += OnSettingChanged;
 
             PluginConfig.enableCreditRefund.SettingChanged += OnSettingChanged;
 
-            PluginConfig.enableSpawnDiversity.SettingChanged += OnSettingChanged;
+            PluginConfig.enableWorldDiversity.SettingChanged += OnSettingChanged;
             PluginConfig.enableBossDiversity.SettingChanged += OnSettingChanged;
             PluginConfig.enableVieldsDiversity.SettingChanged += OnSettingChanged;
         }
 
-        private void OnSettingChanged(object _, EventArgs __)
+        private void OnSettingChanged(object _ = null, EventArgs __ = null)
         {
-            RefundEnabled = PluginConfig.enableDirectorMain.Value && PluginConfig.enableCreditRefund.Value;
-            VarietyEnabled = PluginConfig.enableDirectorMain.Value && ConfigVarietyEnabled;
+            RefundEnabled = PluginConfig.enableSpawnDiversity.GetValueOrDefault() && PluginConfig.enableCreditRefund.GetValueOrDefault();
+            VarietyEnabled = PluginConfig.enableSpawnDiversity.GetValueOrDefault() && ConfigVarietyEnabled;
         }
 
         #region Hooks
 
         private static void SendBroadcastChat_ChatMessageBase(On.RoR2.Chat.orig_SendBroadcastChat_ChatMessageBase orig, ChatMessageBase message)
         {
-            if (PluginConfig.enableSpawnDiversity.Value && message is Chat.SubjectFormatChatMessage chat)
+            if (PluginConfig.enableWorldDiversity.GetValueOrDefault() && message is Chat.SubjectFormatChatMessage chat)
             {
                 if (chat.baseToken is "SHRINE_COMBAT_USE_MESSAGE" && chat.paramTokens?.Length > 0)
                     chat.paramTokens[0] = Language.GetString("LOGBOOK_CATEGORY_MONSTER").ToLower();
@@ -103,7 +105,7 @@ namespace DirectorRework.Modules
         {
             orig(self);
 
-            if (!PluginConfig.enableBossDiversity.Value)
+            if (!PluginConfig.enableBossDiversity.GetValueOrDefault())
                 return;
 
             var maxMissingHp = float.MinValue;
@@ -151,19 +153,19 @@ namespace DirectorRework.Modules
             if (!master)
                 return;
 
-            if (PluginConfig.creditRefundMultiplier.Value <= 0)
+            if (PluginConfig.creditRefundMultiplier.GetValueOrDefault() <= 0)
                 return;
 
             master.onBodyDestroyed += (body) =>
             {
-                if (PluginConfig.creditRefundMultiplier.Value <= 0)
+                if (PluginConfig.creditRefundMultiplier.GetValueOrDefault() <= 0)
                     return;
 
                 if (self && self.isActiveAndEnabled && self.monsterCredit > 0)
                 {
                     var refund = body?.cost ?? 0f;
                     if (refund > 0f)
-                        self.monsterCredit += refund * PluginConfig.creditRefundMultiplier.Value * 0.01f;
+                        self.monsterCredit += refund * PluginConfig.creditRefundMultiplier.GetValueOrDefault() * 0.01f;
                 }
             };
         }
@@ -174,7 +176,7 @@ namespace DirectorRework.Modules
             if (additionalPlayerCount > 0)
                 additionalPlayerCount--;
 
-            self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maxBossSpawns.Value + (additionalPlayerCount * (PluginConfig.maxBossSpawns.Value / 4));
+            self.maximumNumberToSpawnBeforeSkipping = PluginConfig.maxBossSpawns.GetValueOrDefault() + (additionalPlayerCount * (PluginConfig.maxBossSpawns.GetValueOrDefault() / 4));
             self.skipSpawnIfTooCheap = false;
 
             orig(self);
@@ -219,54 +221,51 @@ namespace DirectorRework.Modules
         #region Director Modification
         public static DirectorCard RollForHorde(DirectorCard selection, CombatDirector self)
         {
-            Instance.self = self;
-            if (self.rng.RangeInt(0, 100) < PluginConfig.hordeOfManyChance.Value)
-                selection = Instance.GetNextSpawnCard(isBoss: true, spawnChampion: false) ?? selection;
-            Instance.self = null;
+            if (self.rng.RangeInt(0, 100) < PluginConfig.hordeOfManyChance.GetValueOrDefault())
+                selection = Instance.GetNextSpawnCard(self, isTeleporterEvent: true, spawnChampion: false) ?? selection;
+
             return selection;
         }
 
         public static void AttemptSpawnOnTarget(CombatDirector self)
         {
-            if (Instance.ConfigVarietyEnabled)
+            if (!ConfigVarietyEnabled)
+                return;
+
+            if (ArenaMissionController.instance?.activeMonsterCards?.Any() == true)
             {
-                Instance.self = self;
-                if (ArenaMissionController.instance?.activeMonsterCards?.Any() == true)
+                if (PluginConfig.enableVieldsDiversity.GetValueOrDefault())
+                    self.PrepareNewMonsterWave(self.rng.NextElementUniform(ArenaMissionController.instance.activeMonsterCards));
+            }
+            else if (self.finalMonsterCardsSelection?.Count > 0 && self.spawnCountInCurrentWave < self.maximumNumberToSpawnBeforeSkipping)
+            {
+                if (self == TeleporterInteraction.instance?.bossDirector)
                 {
-                    if (PluginConfig.enableVieldsDiversity.Value)
-                        self.PrepareNewMonsterWave(self.rng.NextElementUniform(ArenaMissionController.instance.activeMonsterCards));
+                    if (PluginConfig.enableBossDiversity.GetValueOrDefault())
+                        Instance.SetNextSpawn(self, isTeleporterEvent: true, IsMonsterChampion(self.currentMonsterCard));
                 }
-                else if (self.finalMonsterCardsSelection?.Count > 0 && self.spawnCountInCurrentWave < self.maximumNumberToSpawnBeforeSkipping)
+                else
                 {
-                    if (self == TeleporterInteraction.instance?.bossDirector)
-                    {
-                        if (PluginConfig.enableBossDiversity.Value)
-                            Instance.SetNextSpawn(isBoss: true, GetIsChampion(self.currentMonsterCard));
-                    }
-                    else
-                    {
-                        if (PluginConfig.enableSpawnDiversity.Value)
-                            Instance.SetNextSpawn(isBoss: false, spawnChampion: false);
-                    }
+                    if (PluginConfig.enableWorldDiversity.GetValueOrDefault())
+                        Instance.SetNextSpawn(self, isTeleporterEvent: false, spawnChampion: false);
                 }
             }
-            Instance.self = null;
         }
 
-        private static bool GetIsChampion(DirectorCard currentMonsterCard) =>
+        private static bool IsMonsterChampion(DirectorCard currentMonsterCard) =>
             currentMonsterCard?.GetSpawnCard()?.prefab.GetComponent<CharacterMaster>().bodyPrefab.GetComponent<CharacterBody>().isChampion ?? false;
 
-        private void SetNextSpawn(bool isBoss, bool spawnChampion)
+        private void SetNextSpawn(CombatDirector self, bool isTeleporterEvent, bool spawnChampion)
         {
-            var nextMonsterCard = GetNextSpawnCard(isBoss, spawnChampion);
+            var nextMonsterCard = GetNextSpawnCard(self, isTeleporterEvent, spawnChampion);
             if (nextMonsterCard?.GetSpawnCard())
             {
-                var nextEliteTier = GetBestEliteTier(nextMonsterCard);
+                var nextEliteTier = GetBestEliteTier(self, nextMonsterCard);
                 var nextEliteDef = nextEliteTier.GetRandomAvailableEliteDef(self.rng);
-                if (PluginConfig.enableMoreDebugLogs.Value)
+                if (PluginConfig.enableMoreDebugLogs.GetValueOrDefault())
                 {
-                    Log.Debug($"{self.name} overriding {self.currentMonsterCard?.GetSpawnCard()?.prefab?.name ?? "null"} {self.currentActiveEliteDef?.modifierToken} | {self.currentMonsterCard?.cost} * {self.currentActiveEliteTier?.costMultiplier}" +
-                        $"\r\n\twith {nextMonsterCard.GetSpawnCard().prefab?.name} {nextEliteDef?.modifierToken} | {nextMonsterCard.cost} * {nextEliteTier.costMultiplier}");
+                    Log.Debug($"{self.name} ({self.monsterCredit}) overriding {self.currentMonsterCard?.GetSpawnCard()?.prefab.name ?? "null"} {self.currentActiveEliteDef?.eliteEquipmentDef?.name} | {self.currentMonsterCard?.cost} * {self.currentActiveEliteTier.costMultiplier}" +
+                        $"\r\n\twith {nextMonsterCard.GetSpawnCard().prefab.name} {nextEliteDef?.eliteEquipmentDef?.name} | {nextMonsterCard.cost} * {nextEliteTier.costMultiplier}");
                 }
                 self.currentMonsterCard = nextMonsterCard;
                 self.lastAttemptedMonsterCard = nextMonsterCard;
@@ -275,9 +274,12 @@ namespace DirectorRework.Modules
             }
         }
 
-        private DirectorCard GetNextSpawnCard(bool isBoss, bool spawnChampion = false)
+        private DirectorCard GetNextSpawnCard(CombatDirector self, bool isTeleporterEvent, bool spawnChampion)
         {
-            if (self.finalMonsterCardsSelection?.Count == 0 || self.monsterCredit <= 0)
+            if (self.finalMonsterCardsSelection?.Count == 0)
+                return null;
+
+            if (self.HasOverrideBoss() || self.monsterCredit <= 0)
                 return null;
 
             var weightedSelection = new WeightedSelection<DirectorCard>();
@@ -285,18 +287,18 @@ namespace DirectorRework.Modules
             for (var i = 0; i < self.finalMonsterCardsSelection.Count; i++)
             {
                 var choice = self.finalMonsterCardsSelection.GetChoice(i);
-                if (choice.value?.IsAvailable() == true && choice.value.cost <= self.monsterCredit)
+                if (choice.value.IsAvailable() == true && choice.value.cost <= self.monsterCredit)
                 {
-                    if (isBoss)
+                    if (isTeleporterEvent)
                     {
                         if ((choice.value.GetSpawnCard() as CharacterSpawnCard)?.forbiddenAsBoss != false)
                             continue;
 
-                        if (spawnChampion != GetIsChampion(choice.value))
+                        if (spawnChampion != IsMonsterChampion(choice.value))
                             continue;
                     }
 
-                    var bestEliteTier = GetBestEliteTier(choice.value);
+                    var bestEliteTier = GetBestEliteTier(self, choice.value);
                     if (self.skipSpawnIfTooCheap && self.consecutiveCheapSkips < self.maxConsecutiveCheapSkips)
                     {
                         var eliteCost = bestEliteTier.costMultiplier * choice.value.cost;
@@ -322,7 +324,7 @@ namespace DirectorRework.Modules
             return null;
         }
 
-        private CombatDirector.EliteTierDef GetBestEliteTier(DirectorCard nextMonsterCard)
+        private CombatDirector.EliteTierDef GetBestEliteTier(CombatDirector self, DirectorCard nextMonsterCard)
         {
             // default tier
             var currentActiveEliteTier = CombatDirector.eliteTiers[0];

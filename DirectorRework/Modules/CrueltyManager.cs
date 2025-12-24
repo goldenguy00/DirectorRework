@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using DirectorRework.Config;
 using DirectorRework.Cruelty;
 using EntityStates;
 using HarmonyLib;
@@ -24,12 +25,14 @@ namespace DirectorRework.Modules
             EquipmentCatalog.availability.CallWhenAvailable(OnLoad);
 
             OnSettingChanged();
-            PluginConfig.enableCruelty.SettingChanged += OnSettingChanged;
+
+            PluginConfig.enableEliteStacking.SettingChanged += OnSettingChanged;
+            PluginConfig.useRecommendedValues[PluginConfig.enableEliteStacking.Definition.Section].SettingChanged += OnSettingChanged;
         }
 
         public void OnSettingChanged(object _ = null, EventArgs __ = null)
         {
-            if (PluginConfig.enableCruelty.Value)
+            if (PluginConfig.enableEliteStacking.GetValueOrDefault())
                 SetHooks();
             else
                 UnsetHooks();
@@ -102,7 +105,10 @@ namespace DirectorRework.Modules
             for (uint i = 0; i < inventory.GetEquipmentSlotCount(); i++)
             {
                 var equipmentDef = inventory.GetEquipment(i, 0).equipmentDef;
-                if (equipmentDef?.dropOnDeathChance == 0 || equipmentDef.equipmentIndex == EquipmentIndex.None || equipmentDef.equipmentIndex == currentEquipment)
+                if (equipmentDef == null || equipmentDef.dropOnDeathChance <= 0f)
+                    continue;
+
+                if (equipmentDef.equipmentIndex == EquipmentIndex.None || equipmentDef.equipmentIndex == currentEquipment)
                     continue;
 
                 if (Util.CheckRoll(equipmentDef.dropOnDeathChance * 100f, baseLuck + i, report.attackerMaster))
@@ -114,7 +120,7 @@ namespace DirectorRework.Modules
                     ray.origin += Vector3.up * 1.5f;
                     ray.direction = (ray.direction * 2f) + (Vector3.up * 20f);
 
-                    if (PluginConfig.enableMoreDebugLogs.Value)
+                    if (PluginConfig.enableMoreDebugLogs.GetValueOrDefault())
                         Log.Debug("dropping affix " + equipmentDef.nameToken + " woo " + i + "x luck!");
                     PickupDropletController.CreatePickupDroplet(new UniquePickup(PickupCatalog.FindPickupIndex(equipmentDef.equipmentIndex)), ray.origin, ray.direction, false);
                 }
@@ -192,7 +198,7 @@ namespace DirectorRework.Modules
             for (uint i = 0; i < sourceInventory.GetEquipmentSlotCount(); i++)
             {
                 var affixEquipDef = sourceInventory.GetEquipment(i, 0).equipmentDef;
-                if (ReferenceEquals(affixEquipDef?.passiveBuffDef, null))
+                if (affixEquipDef == null || affixEquipDef.passiveBuffDef == null)
                     continue;
 
                 if (affixEquipDef.equipmentIndex == EquipmentIndex.None || affixEquipDef.passiveBuffDef.buffIndex == BuffIndex.None)

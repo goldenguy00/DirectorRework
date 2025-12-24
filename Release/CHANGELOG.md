@@ -1,3 +1,13 @@
+## 1.3.2
+- Reworked configs. everything module now has the ability to be set to the recommended values.
+  - Default is true, so turn this off for any section that you would like to apply your own changes to.
+- Added config for enabling elite rules for Scripted Combat events. Will prevent T2 from appearing early.
+- Fixed NRE on umbra mul-t death
+
+## 1.3.1
+- Fixed scripted bosses still getting stats
+- Fixed issues with teleporter boss overrides
+
 ## 1.3.0
 - Accounted for certain AC changes
 - Adjusted director tweaks to account for fast/slow directors

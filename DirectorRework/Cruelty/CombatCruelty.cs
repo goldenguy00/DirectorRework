@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using DirectorRework.Config;
 using DirectorRework.Modules;
 using HG;
 using RoR2;
@@ -24,7 +25,7 @@ namespace DirectorRework.Cruelty
 
         private void OnSpawnedServer(GameObject masterObject, CombatDirector self)
         {
-            if (!PluginConfig.enableCruelty.Value || !Util.CheckRoll(PluginConfig.triggerChance.Value))
+            if (!PluginConfig.enableEliteStacking.GetValueOrDefault() || !Util.CheckRoll(PluginConfig.scriptedTriggerChance.GetValueOrDefault()))
                 return;
 
             if (!self || ReferenceEquals(self.currentMonsterCard, null) || ReferenceEquals(self.rng, null))
@@ -42,11 +43,11 @@ namespace DirectorRework.Cruelty
             if (!body)
                 return;
 
-            if (!PluginConfig.allowBosses.Value && master.isBoss)
+            if (!PluginConfig.allowBosses.GetValueOrDefault() && (master.isBoss || body.isChampion))
                 return;
 
-            bool isElite = body.eliteBuffCount > 0 || (PluginConfig.bossesAreElite.Value && master.isBoss);
-            if (PluginConfig.onlyApplyToElites.Value && !isElite)
+            bool isElite = body.eliteBuffCount > 0 || (PluginConfig.bossesAreElite.GetValueOrDefault() && (master.isBoss || body.isChampion));
+            if (PluginConfig.worldOnlyPromote.GetValueOrDefault() && !isElite)
                 return;
 
             AddEliteBuffs(self, body, master.inventory);
@@ -73,26 +74,30 @@ namespace DirectorRework.Cruelty
                 gold = deathRewards.goldReward;
             }
 
-            while (director.monsterCredit > 0 && currentEliteBuffs.Count < PluginConfig.maxAffixes.Value &&
+            while (director.monsterCredit > 0 && currentEliteBuffs.Count < PluginConfig.worldMaxAffixes.GetValueOrDefault() &&
                 GetRandom(director, currentEliteBuffs, out var eliteDef, out float cost))
             {
                 currentEliteBuffs.Add(eliteDef.eliteEquipmentDef.passiveBuffDef.buffIndex);
                 director.monsterCredit -= cost;
                 body.cost += cost;
 
-                if (PluginConfig.enableMoreDebugLogs.Value)
+                if (PluginConfig.enableMoreDebugLogs.GetValueOrDefault())
                 {
-                    Log.Debug($"NORMAL {body}  |  isBoss? {body.isBoss}   |   affix #{currentEliteBuffs.Count} - {eliteDef.modifierToken}");
+                    Log.Debug($"NORMAL {body}  |  isBoss? {body.isBoss} isChamp? {body.isChampion}  |   affix #{currentEliteBuffs.Count} - {eliteDef.modifierToken}");
                 }
 
                 CrueltyManager.Instance.GiveAffix(body, inventory, eliteDef.eliteEquipmentDef);
-                if (PluginConfig.enableMoreDebugLogs.Value)
-                    CrueltyManager.Instance.GiveItemBoostsVerbose(inventory, eliteDef, currentEliteBuffs.Count);
-                else
-                    CrueltyManager.Instance.GiveItemBoosts(inventory, eliteDef, currentEliteBuffs.Count);
+
+                if (PluginConfig.scriptedStats.GetValueOrDefault() || (!body.isChampion && !body.isBoss))
+                {
+                    if (PluginConfig.enableMoreDebugLogs.GetValueOrDefault())
+                        CrueltyManager.Instance.GiveItemBoostsVerbose(inventory, eliteDef, currentEliteBuffs.Count);
+                    else
+                        CrueltyManager.Instance.GiveItemBoosts(inventory, eliteDef, currentEliteBuffs.Count);
+                }
                 CrueltyManager.Instance.GiveDeathReward(deathRewards, xp, gold, currentEliteBuffs.Count);
 
-                if (!Util.CheckRoll(PluginConfig.successChance.Value))
+                if (!Util.CheckRoll(PluginConfig.worldAdditionalChance.GetValueOrDefault()))
                     break;
             }
 
